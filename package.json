@@ -1,0 +1,27 @@
+{
+  "name": "no-interface-zero-ui",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon --watch . --ext js,json app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/task-shift/No-Interface-Zero-UI.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/task-shift/No-Interface-Zero-UI/issues"
+  },
+  "homepage": "https://github.com/task-shift/No-Interface-Zero-UI#readme",
+  "dependencies": {
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  }
+}

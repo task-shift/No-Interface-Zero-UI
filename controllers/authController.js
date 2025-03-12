@@ -1,0 +1,141 @@
+const UserModel = require('../models/userModel');
+const { generateToken } = require('../middleware/auth');
+
+exports.register = async (req, res) => {
+  try {
+    const { username, email, fullname, organization_name, password, type } = req.body;
+
+    // Validate input
+    if (!username || !email || !fullname || !password || !organization_name) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide all required fields: username, email, fullname, organization_name, and password'
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid email address'
+      });
+    }
+
+    // Create user with organization
+    const { success, user, error } = await UserModel.createUser({
+      username,
+      email,
+      fullname,
+      organization_name,
+      password,
+      type
+    });
+
+    if (!success) {
+      return res.status(400).json({
+        success: false,
+        message: error
+      });
+    }
+
+    // Generate JWT token
+    const token = generateToken(user.user_id);
+
+    res.status(201).json({
+      success: true,
+      token,
+      user
+    });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during registration'
+    });
+  }
+};
+
+exports.login = async (req, res) => {
+  try {
+    const { login, password } = req.body;  // login can be either username or email
+
+    // Validate input
+    if (!login || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide login (username or email) and password'
+      });
+    }
+
+    // Authenticate user
+    const { success, user, error } = await UserModel.authenticateUser(login, password);
+
+    if (!success) {
+      return res.status(401).json({
+        success: false,
+        message: error
+      });
+    }
+
+    // Generate JWT token
+    const token = generateToken(user.user_id);
+
+    res.json({
+      success: true,
+      token,
+      user
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+};
+
+exports.logout = async (req, res) => {
+  try {
+    const { success, error } = await UserModel.logoutUser(req.user.user_id);
+
+    if (!success) {
+      return res.status(400).json({
+        success: false,
+        message: error
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Logged out successfully'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+};
+
+exports.getCurrentUser = async (req, res) => {
+  try {
+    const { success, user, error } = await UserModel.getUserById(req.user.user_id);
+
+    if (!success) {
+      return res.status(400).json({
+        success: false,
+        message: error
+      });
+    }
+
+    res.json({
+      success: true,
+      user
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+}; 

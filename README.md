@@ -159,7 +159,7 @@ Response:
 
 ### Tasks
 
-#### Create a Task (Admin only)
+#### Create a Task (Admin/AdminX only)
 ```http
 POST /api/tasks
 Content-Type: application/json

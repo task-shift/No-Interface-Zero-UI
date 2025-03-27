@@ -18,6 +18,14 @@ exports.createTask = async (req, res) => {
       });
     }
 
+    // Check if user has admin privileges
+    if (req.user.role !== 'admin' && req.user.role !== 'adminx') {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin privileges required to create and assign tasks'
+      });
+    }
+
     // Validate required fields
     if (!title || !description || !assignees) {
       return res.status(400).json({

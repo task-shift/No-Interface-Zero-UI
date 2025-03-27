@@ -6,10 +6,10 @@ exports.register = async (req, res) => {
     const { username, email, fullname, organization_name, password, type } = req.body;
 
     // Validate input
-    if (!username || !email || !fullname || !password || !organization_name) {
+    if (!username || !email || !fullname || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide all required fields: username, email, fullname, organization_name, and password'
+        message: 'Please provide all required fields: username, email, fullname, and password'
       });
     }
 
@@ -22,12 +22,12 @@ exports.register = async (req, res) => {
       });
     }
 
-    // Create user with organization
+    // Create user with optional organization
     const { success, user, error } = await UserModel.createUser({
       username,
       email,
       fullname,
-      organization_name,
+      organization_name, // This is now optional
       password,
       type
     });

@@ -46,6 +46,23 @@ CREATE TABLE organizations (
 );
 ```
 
+### Tasks Table
+```sql
+CREATE TABLE tasks (
+    id SERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT,
+    task_id TEXT NOT NULL UNIQUE,
+    user_id TEXT NOT NULL,
+    organization_id UUID NOT NULL,
+    assigned JSONB NOT NULL,
+    status VARCHAR(50) DEFAULT 'pending',
+    due_date DATE,
+    date_created DATE DEFAULT CURRENT_DATE,
+    time_created TIME DEFAULT CURRENT_TIME
+);
+```
+
 ## API Endpoints
 
 ### Authentication
@@ -59,8 +76,8 @@ Content-Type: application/json
     "username": "johndoe",
     "email": "john.doe@example.com",
     "fullname": "John Doe",
-    "organization_name": "Acme Corp",
     "password": "securepassword123",
+    "organization_name": "Acme Corp",  // Optional - if provided, creates an organization
     "type": "adminx"  // Optional - if "adminx", creates admin user
 }
 ```
@@ -78,9 +95,9 @@ Response:
         "avatar": null,
         "user_id": "uuid_here",
         "role": "admin",
-        "organization_id": "org_uuid_here",
+        "organization_id": "org_uuid_here",  // Only present if organization was created
         "status": "active",
-        "organization": {
+        "organization": {  // Only present if organization was created
             "organization_id": "org_uuid_here",
             "organization_name": "Acme Corp"
         }
@@ -140,12 +157,98 @@ Response:
 }
 ```
 
+### Tasks
+
+#### Create a Task (Admin only)
+```http
+POST /api/tasks
+Content-Type: application/json
+Authorization: Bearer jwt_token_here
+
+{
+    "title": "Complete Project Plan",
+    "description": "Create a comprehensive project plan including timelines and resource allocation",
+    "assigned": {
+        "user_id": "user_uuid_here",
+        "username": "janesmith",
+        "fullname": "Jane Smith",
+        "email": "jane.smith@example.com",
+        "avatar": "avatar_url_here"
+    },
+    "status": "pending",
+    "due_date": "2023-12-31"
+}
+```
+
+Response:
+```json
+{
+    "success": true,
+    "task": {
+        "id": 1,
+        "title": "Complete Project Plan",
+        "description": "Create a comprehensive project plan including timelines and resource allocation",
+        "task_id": "task_uuid_here",
+        "user_id": "admin_user_uuid_here",
+        "organization_id": "org_uuid_here",
+        "assigned": {
+            "user_id": "user_uuid_here",
+            "username": "janesmith",
+            "fullname": "Jane Smith",
+            "email": "jane.smith@example.com",
+            "avatar": "avatar_url_here"
+        },
+        "status": "pending",
+        "due_date": "2023-12-31",
+        "date_created": "2023-08-15",
+        "time_created": "14:30:00"
+    }
+}
+```
+
+#### Get All Organization Tasks
+```http
+GET /api/tasks
+Authorization: Bearer jwt_token_here
+```
+
+Response:
+```json
+{
+    "success": true,
+    "tasks": [
+        {
+            // Task data
+        },
+        {
+            // Task data
+        }
+    ]
+}
+```
+
+#### Get Task by ID
+```http
+GET /api/tasks/:task_id
+Authorization: Bearer jwt_token_here
+```
+
+Response:
+```json
+{
+    "success": true,
+    "task": {
+        // Task data
+    }
+}
+```
+
 ## Authentication Flow
 
 1. **Registration**:
-   - User provides registration details including organization name
-   - System creates organization
-   - System creates user with organization association
+   - User provides registration details
+   - If organization name is provided, system creates organization (optional)
+   - System creates user with optional organization association
    - Returns JWT token and user data
 
 2. **Login**:

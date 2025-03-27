@@ -13,50 +13,66 @@ class UserModel {
       // Generate a unique user_id
       const user_id = uuidv4();
 
-      // Create organization first
-      const { success: orgSuccess, organization, error: orgError } = 
-        await OrganizationModel.createOrganization({
-          organization_name,
-          user_id
-        });
+      let organization = null;
 
-      if (!orgSuccess) {
-        throw new Error(orgError);
+      // Only create organization if organization_name is provided
+      if (organization_name) {
+        // Create organization first
+        const { success: orgSuccess, organization: orgData, error: orgError } = 
+          await OrganizationModel.createOrganization({
+            organization_name,
+            user_id
+          });
+
+        if (!orgSuccess) {
+          throw new Error(orgError);
+        }
+        
+        organization = orgData;
       }
 
-      // Now create the user with the organization_id
+      // Create user with optional organization_id
+      const userData = {
+        username,
+        email,
+        fullname,
+        user_id,
+        password: hashedPassword,
+        role: type === 'adminx' ? 'admin' : 'user',
+        status: 'active',
+        online: true
+        // date_created and time_created will be handled by default values
+      };
+
+      // Only add organization_id if an organization was created
+      if (organization) {
+        userData.organization_id = organization.organization_id;
+      }
+
+      // Now create the user
       const { data, error } = await supabase
         .from('users')
-        .insert([
-          {
-            username,
-            email,
-            fullname,
-            organization_id: organization.organization_id,
-            user_id,
-            password: hashedPassword,
-            role: type === 'adminx' ? 'admin' : 'user',
-            status: 'active',
-            online: true
-            // date_created and time_created will be handled by default values
-          }
-        ])
+        .insert([userData])
         .select('id, fullname, username, email, avatar, user_id, role, organization_id, status')
         .single();
 
       if (error) throw error;
 
-      // Return both user and organization data
-      return { 
-        success: true, 
-        user: {
-          ...data,
-          organization: {
-            organization_id: organization.organization_id,
-            organization_name: organization.organization_name
-          }
-        }
+      // Return user data with optional organization info
+      const response = {
+        success: true,
+        user: { ...data }
       };
+
+      // Include organization info if available
+      if (organization) {
+        response.user.organization = {
+          organization_id: organization.organization_id,
+          organization_name: organization.organization_name
+        };
+      }
+
+      return response;
     } catch (error) {
       // If anything fails, return the error
       return { success: false, error: error.message };

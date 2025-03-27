@@ -7,7 +7,7 @@ class TaskModel {
     description, 
     user_id, 
     organization_id, 
-    assigned, 
+    assignees, 
     status, 
     due_date 
   }) {
@@ -24,7 +24,7 @@ class TaskModel {
             task_id,
             user_id,             // Creator's user_id
             organization_id,
-            assigned,            // JSON object with assignee details
+            assignees,           // Array of assignee details
             status: status || 'pending',
             due_date,
             date_created: new Date(),

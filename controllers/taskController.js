@@ -5,25 +5,35 @@ exports.createTask = async (req, res) => {
     const { 
       title, 
       description, 
-      assigned, 
+      assignees, 
       status, 
       due_date 
     } = req.body;
 
     // Validate required fields
-    if (!title || !description || !assigned) {
+    if (!title || !description || !assignees) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide title, description, and assigned user'
+        message: 'Please provide title, description, and assignees'
       });
     }
 
-    // Validate assigned JSON structure
-    if (!assigned.user_id || !assigned.username || !assigned.fullname) {
+    // Validate assignees is an array
+    if (!Array.isArray(assignees) || assignees.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Assigned user must include user_id, username, and fullname'
+        message: 'Assignees must be a non-empty array'
       });
+    }
+
+    // Validate each assignee has the required fields
+    for (const assignee of assignees) {
+      if (!assignee.user_id || !assignee.username || !assignee.fullname) {
+        return res.status(400).json({
+          success: false,
+          message: 'Each assignee must include user_id, username, and fullname'
+        });
+      }
     }
 
     // Create task with authenticated user's ID and organization
@@ -32,7 +42,7 @@ exports.createTask = async (req, res) => {
       description,
       user_id: req.user.user_id, // Creator (logged in admin)
       organization_id: req.user.organization_id,
-      assigned,
+      assignees, // Now an array of assignees
       status,
       due_date
     });

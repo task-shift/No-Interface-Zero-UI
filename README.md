@@ -55,7 +55,7 @@ CREATE TABLE tasks (
     task_id TEXT NOT NULL UNIQUE,
     user_id TEXT NOT NULL,
     organization_id UUID NOT NULL,
-    assigned JSONB NOT NULL,
+    assignees JSONB NOT NULL,  -- Array of assignees
     status VARCHAR(50) DEFAULT 'pending',
     due_date DATE,
     date_created DATE DEFAULT CURRENT_DATE,
@@ -168,13 +168,22 @@ Authorization: Bearer jwt_token_here
 {
     "title": "Complete Project Plan",
     "description": "Create a comprehensive project plan including timelines and resource allocation",
-    "assigned": {
-        "user_id": "user_uuid_here",
-        "username": "janesmith",
-        "fullname": "Jane Smith",
-        "email": "jane.smith@example.com",
-        "avatar": "avatar_url_here"
-    },
+    "assignees": [
+        {
+            "user_id": "user1_uuid_here",
+            "username": "janesmith",
+            "fullname": "Jane Smith",
+            "email": "jane.smith@example.com",
+            "avatar": "avatar_url_here"
+        },
+        {
+            "user_id": "user2_uuid_here",
+            "username": "johndoe",
+            "fullname": "John Doe",
+            "email": "john.doe@example.com",
+            "avatar": "avatar_url_here"
+        }
+    ],
     "status": "pending",
     "due_date": "2023-12-31"
 }
@@ -191,13 +200,22 @@ Response:
         "task_id": "task_uuid_here",
         "user_id": "admin_user_uuid_here",
         "organization_id": "org_uuid_here",
-        "assigned": {
-            "user_id": "user_uuid_here",
-            "username": "janesmith",
-            "fullname": "Jane Smith",
-            "email": "jane.smith@example.com",
-            "avatar": "avatar_url_here"
-        },
+        "assignees": [
+            {
+                "user_id": "user1_uuid_here",
+                "username": "janesmith",
+                "fullname": "Jane Smith",
+                "email": "jane.smith@example.com",
+                "avatar": "avatar_url_here"
+            },
+            {
+                "user_id": "user2_uuid_here",
+                "username": "johndoe",
+                "fullname": "John Doe",
+                "email": "john.doe@example.com",
+                "avatar": "avatar_url_here"
+            }
+        ],
         "status": "pending",
         "due_date": "2023-12-31",
         "date_created": "2023-08-15",

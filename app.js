@@ -2,6 +2,7 @@ const express = require('express');
 const userRoutes = require('./routes/userRoutes');
 const authRoutes = require('./routes/authRoutes');
 const taskRoutes = require('./routes/taskRoutes');
+const organizationRoutes = require('./routes/organizationRoutes');
 
 const app = express();
 
@@ -12,6 +13,7 @@ app.use(express.urlencoded({ extended: true }));
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
+app.use('/api/organizations', organizationRoutes);
 app.use('/api', userRoutes);
 
 // Start the server

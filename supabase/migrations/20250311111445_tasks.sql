@@ -4,10 +4,10 @@ CREATE TABLE IF NOT EXISTS tasks (
     title TEXT NOT NULL,
     description TEXT,
     task_id TEXT NOT NULL UNIQUE,
-    user_id TEXT UNIQUE,
-    organization_id UUID,
-    assigned JSONB,
-    status VARCHAR(50),
+    user_id TEXT NOT NULL,
+    organization_id UUID NOT NULL,
+    assignees JSONB NOT NULL,  -- Array of assignees
+    status VARCHAR(50) DEFAULT 'pending',
     due_date DATE,
     date_created DATE DEFAULT CURRENT_DATE,
     time_created TIME DEFAULT CURRENT_TIME

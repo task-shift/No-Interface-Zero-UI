@@ -10,6 +10,14 @@ exports.createTask = async (req, res) => {
       due_date 
     } = req.body;
 
+    // Check if user has an organization
+    if (!req.user.organization_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'You must be associated with an organization to create tasks. Please join or create an organization first.'
+      });
+    }
+
     // Validate required fields
     if (!title || !description || !assignees) {
       return res.status(400).json({

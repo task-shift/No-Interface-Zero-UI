@@ -261,6 +261,79 @@ Response:
 }
 ```
 
+### Organizations
+
+#### Create Organization
+```http
+POST /api/organizations
+Content-Type: application/json
+Authorization: Bearer jwt_token_here
+
+{
+    "organization_name": "New Company Inc."
+}
+```
+
+Response:
+```json
+{
+    "success": true,
+    "message": "Organization created successfully",
+    "organization": {
+        "id": 1,
+        "organization_name": "New Company Inc.",
+        "organization_id": "org_uuid_here",
+        "user_id": "creator_user_id",
+        "status": "active",
+        "date_created": "2023-08-15",
+        "time_created": "14:30:00"
+    }
+}
+```
+
+#### Get User's Organization
+```http
+GET /api/organizations/me
+Authorization: Bearer jwt_token_here
+```
+
+Response:
+```json
+{
+    "success": true,
+    "organization": {
+        "id": 1,
+        "organization_name": "New Company Inc.",
+        "organization_id": "org_uuid_here",
+        "user_id": "creator_user_id",
+        "status": "active",
+        "date_created": "2023-08-15",
+        "time_created": "14:30:00"
+    }
+}
+```
+
+#### List All Organizations (Admin only)
+```http
+GET /api/organizations
+Authorization: Bearer jwt_token_here
+```
+
+Response:
+```json
+{
+    "success": true,
+    "organizations": [
+        {
+            // Organization data
+        },
+        {
+            // Organization data
+        }
+    ]
+}
+```
+
 ## Authentication Flow
 
 1. **Registration**:

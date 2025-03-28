@@ -566,10 +566,30 @@ Response:
    - Protected routes require verified email status
    - Login requires email verification
 
-4. **Database Security**:
+4. **DDOS Protection**:
+   - Rate limiting on all endpoints
+   - Stricter limits on authentication endpoints (10 requests/hour per IP)
+   - Email verification rate limiting (5 requests/hour per IP)
+   - API rate limiting (100 requests/15 minutes per IP)
+   - Global request limiting (500 requests/15 minutes per IP)
+   - Request body size limits (1MB)
+   - IP blacklisting for known malicious IPs
+   - Trust proxy configuration for proper IP detection behind load balancers
+
+5. **HTTP Security**:
+   - Helmet.js for setting secure HTTP headers
+   - Content Security Policy
+   - XSS Protection
+   - Protection against clickjacking
+   - Preventing MIME type sniffing
+   - CORS protection
+   - Express validator for input sanitization and validation
+
+6. **Database Security**:
    - Unique constraints on username and email
    - UUID for user and organization IDs
    - Status tracking for users and organizations
+   - Prepared statements to prevent SQL injection
 
 ## Error Handling
 

@@ -4,14 +4,15 @@ const authController = require('../controllers/authController');
 const { requireAuth, requireVerifiedUser } = require('../middleware/auth');
 const emailController = require('../controllers/emailController');
 const verificationController = require('../controllers/verificationController');
+const { authLimiter, emailLimiter } = require('../middleware/rateLimiter');
 
-// Public routes
-router.post('/register', authController.register);
-router.post('/login', authController.login);
+// Public routes with auth rate limiting
+router.post('/register', authLimiter, authController.register);
+router.post('/login', authLimiter, authController.login);
 
-// Verification routes
-router.post('/send-verification', emailController.sendVerificationEmail);
-router.post('/verify-email', verificationController.verifyEmail);
+// Verification routes with email rate limiting
+router.post('/send-verification', emailLimiter, emailController.sendVerificationEmail);
+router.post('/verify-email', emailLimiter, verificationController.verifyEmail);
 router.get('/verification-status', verificationController.checkVerificationStatus);
 
 // Protected routes - require authentication but not verification

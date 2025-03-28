@@ -27,7 +27,7 @@ exports.sendTestEmail = async (req, res) => {
     
     // Send email using Resend
     const { data, error } = await resend.emails.send({
-      from: 'taskShift <onboarding@resend.dev>',
+      from: 'TaskShift <support@taskshift.xyz>',
       to: Array.isArray(to) ? to : [to], // Accept single email or array
       subject: emailSubject,
       html: emailHtml,
@@ -87,7 +87,7 @@ exports.sendVerificationEmail = async (req, res) => {
     
     // Send email using Resend
     const { data, error } = await resend.emails.send({
-      from: 'taskShift <onboarding@resend.dev>',
+      from: 'TaskShift <verify@taskshift.xyz>',
       to: email,
       subject: 'Verify your email address',
       html: emailHtml,

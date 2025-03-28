@@ -8,7 +8,13 @@
     "dev": "nodemon --watch . --ext js,json app.js",
     "seed": "node seeders/index.js",
     "test": "jest",
-    "test:supabase": "node scripts/test-supabase-connection.js"
+    "test:supabase": "node scripts/test-supabase-connection.js",
+    "test:security": "node tests/security/runAllTests.js",
+    "test:security:headers": "node tests/security/securityHeaders.test.js",
+    "test:security:rate-limit": "node tests/security/rateLimiter.test.js",
+    "test:security:ip-filter": "node tests/security/ipFilter.test.js",
+    "test:security:body-limits": "node tests/security/bodyLimits.test.js",
+    "test:load": "node tests/security/loadTest.js"
   },
   "repository": {
     "type": "git",
@@ -23,15 +29,21 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.39.7",
     "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "express-validator": "^7.2.1",
+    "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "resend": "^4.2.0",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
+    "axios": "^1.8.4",
     "jest": "^29.7.0",
     "nodemon": "^3.1.9",
-    "supabase": "^2.15.8"
+    "supabase": "^2.15.8",
+    "supertest": "^7.1.0"
   }
 }

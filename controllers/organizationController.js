@@ -21,6 +21,15 @@ exports.createOrganization = async (req, res) => {
     });
 
     if (!success) {
+      // Check if the error is about duplicate organization name
+      if (error.includes('organization with this name already exists')) {
+        return res.status(409).json({
+          success: false,
+          message: 'An organization with this name already exists',
+          error: 'DUPLICATE_ORGANIZATION_NAME'
+        });
+      }
+      
       return res.status(400).json({
         success: false,
         message: error

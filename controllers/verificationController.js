@@ -32,9 +32,9 @@ exports.verifyEmail = async (req, res) => {
 
     // If user is already verified, return success but indicate already verified
     if (user && user.status === 'verified') {
-      return res.status(200).json({
-        success: true,
-        message: 'Email is already verified',
+      return res.status(400).json({
+        success: false,
+        message: 'Email is already verified and cannot be verified again',
         alreadyVerified: true
       });
     }

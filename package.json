@@ -26,6 +26,7 @@
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
+    "resend": "^4.2.0",
     "uuid": "^11.1.0"
   },
   "devDependencies": {

@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const organizationController = require('../controllers/organizationController');
-const { requireAuth } = require('../middleware/auth');
+const { requireVerifiedUser } = require('../middleware/auth');
 const { requireAdmin } = require('../middleware/adminAuth');
 
-// All organization routes require authentication
-router.use(requireAuth);
+// All organization routes require authentication and email verification
+router.use(requireVerifiedUser);
 
 // Create a new organization
 router.post('/', organizationController.createOrganization);

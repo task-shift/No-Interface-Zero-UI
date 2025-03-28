@@ -5,6 +5,7 @@ A robust authentication and organization management system built with Node.js, E
 ## Features
 
 - User registration and authentication
+- Email verification system
 - Organization creation and management
 - JWT-based authentication
 - Password encryption with bcrypt
@@ -26,7 +27,7 @@ CREATE TABLE users (
     role TEXT,
     permission TEXT,
     organization_id UUID,
-    status VARCHAR(50),
+    status VARCHAR(50),  // When verified, this is set to 'verified'
     online BOOLEAN DEFAULT FALSE,
     date_created DATE DEFAULT CURRENT_DATE,
     time_created TIME DEFAULT CURRENT_TIME
@@ -41,6 +42,19 @@ CREATE TABLE organizations (
     organization_id UUID NOT NULL UNIQUE,
     user_id TEXT NOT NULL,
     status VARCHAR(50),
+    date_created DATE DEFAULT CURRENT_DATE,
+    time_created TIME DEFAULT CURRENT_TIME
+);
+```
+
+### Verification Table
+```sql
+CREATE TABLE verification (
+    id SERIAL PRIMARY KEY,
+    email TEXT NOT NULL,
+    token TEXT,
+    verification_code VARCHAR(10),
+    status VARCHAR(50) DEFAULT 'pending',
     date_created DATE DEFAULT CURRENT_DATE,
     time_created TIME DEFAULT CURRENT_TIME
 );
@@ -116,7 +130,7 @@ Content-Type: application/json
 }
 ```
 
-Response:
+Response (Success):
 ```json
 {
     "success": true,
@@ -127,7 +141,85 @@ Response:
 }
 ```
 
+Response (Unverified Email):
+```json
+{
+    "success": false,
+    "message": "Please verify your email before logging in",
+    "verificationRequired": true,
+    "email": "user@example.com"
+}
+```
+
+### Email Verification Process
+
+#### 1. Send Verification Email
+Send a verification code to the user's email to verify their identity.
+
+```http
+POST /api/auth/send-verification
+Content-Type: application/json
+
+{
+    "email": "user@example.com"  // Email address to verify
+}
+```
+
+Response:
+```json
+{
+    "success": true,
+    "message": "Verification email sent successfully",
+    "data": {
+        "id": "email_123456789",
+        // Other data from the email service
+    }
+}
+```
+
+#### 2. Verify Email with Code
+After the user receives the email and enters the verification code, submit it for verification.
+This will update both the verification record and the user's status to 'verified'.
+
+```http
+POST /api/auth/verify-email
+Content-Type: application/json
+
+{
+    "email": "user@example.com",
+    "verificationCode": "123456"
+}
+```
+
+Response:
+```json
+{
+    "success": true,
+    "message": "Email verified successfully"
+}
+```
+
+#### 3. Check Verification Status
+You can check the verification status of an email at any time.
+
+```http
+GET /api/auth/verification-status?email=user@example.com
+```
+
+Response:
+```json
+{
+    "success": true,
+    "status": "verified",  // Can be "verified", "pending", "expired", or "not_found"
+    "verified": true
+}
+```
+
+### User Management
+
 #### Get Current User
+Requires a verified email.
+
 ```http
 GET /api/auth/me
 Authorization: Bearer jwt_token_here
@@ -140,6 +232,15 @@ Response:
     "user": {
         // User data
     }
+}
+```
+
+Response (Unverified Email):
+```json
+{
+    "success": false,
+    "message": "Email verification required. Please verify your email to access this resource.",
+    "verificationRequired": true
 }
 ```
 
@@ -158,6 +259,7 @@ Response:
 ```
 
 ### Tasks
+All task endpoints require a verified email.
 
 #### Create a Task (Admin/AdminX only)
 ```http
@@ -262,6 +364,7 @@ Response:
 ```
 
 ### Organizations
+All organization endpoints require a verified email.
 
 #### Create Organization
 ```http
@@ -334,7 +437,59 @@ Response:
 }
 ```
 
-## Authentication Flow
+### Test Endpoints
+
+#### Send Test Email
+```http
+POST /test/emails
+Content-Type: application/json
+
+{
+    "to": "recipient@example.com",  // Required - can be a string or array of emails
+    "subject": "Test Subject",      // Optional - default: "Test Email"
+    "content": "Custom content for the email", // Optional - default: "This is a test email from the API."
+    "html": "<p>Test email body</p>" // Optional - override the entire email HTML
+}
+```
+
+Response:
+```json
+{
+    "success": true,
+    "message": "Test email sent successfully",
+    "data": {
+        "id": "email_123456789",
+        // Other data from the email service
+    }
+}
+```
+
+#### Send Verification Email (Test)
+```http
+POST /test/verification-email
+Content-Type: application/json
+
+{
+    "to": "recipient@example.com",  // Required - can be a string or array of emails
+    "verificationCode": "ABC123"    // Required - the verification code to include in the email
+}
+```
+
+Response:
+```json
+{
+    "success": true,
+    "message": "Verification email sent successfully",
+    "data": {
+        "id": "email_123456789",
+        // Other data from the email service
+    }
+}
+```
+
+## Process Flows
+
+### Authentication Flow
 
 1. **Registration**:
    - User provides registration details
@@ -342,21 +497,54 @@ Response:
    - System creates user with optional organization association
    - Returns JWT token and user data
 
-2. **Login**:
+2. **Email Verification**:
+   - After registration, user receives a verification email 
+   - User enters the code to verify their email
+   - User status is updated to 'verified'
+
+3. **Login**:
    - User provides username/email and password
    - System verifies credentials
-   - Returns JWT token and user data
-   - Updates user's online status
+   - System checks if user has verified their email
+   - If verified, returns JWT token and user data
+   - If not verified, returns error with verification required flag
 
-3. **Protected Routes**:
+4. **Protected Routes**:
    - Client includes JWT token in Authorization header
    - Server validates token
-   - Grants access to protected resources
+   - Server checks if user has verified their email
+   - If verified, grants access to protected resources
+   - If not verified, returns 403 with verification required message
 
-4. **Logout**:
+5. **Logout**:
    - Client sends logout request with JWT token
    - Server updates user's online status
    - Client removes token from storage
+
+### Email Verification Flow
+
+1. **Initiate Verification**:
+   - Client calls the send-verification endpoint with the user's email
+   - Server generates a unique verification code
+   - Server stores the code in the verification table
+   - Server sends an email with the verification code to the user
+
+2. **User Verification**:
+   - User receives the email with the verification code
+   - User enters the code in the application
+   - Client sends the code and email to the verify-email endpoint
+   - Server validates the code against the stored record for that email
+   - Server updates the verification status to "verified" if valid
+
+3. **Status Checking** (optional):
+   - Client can check the verification status at any time
+   - Server retrieves the current status from the verification table
+   - Server returns the status and a boolean indicating if verification is complete
+
+4. **Expiration Handling**:
+   - Verification codes automatically expire after 24 hours
+   - If a user attempts to verify with an expired code, they receive an error
+   - Users can request a new code by calling the send-verification endpoint again
 
 ## Security Features
 
@@ -370,7 +558,15 @@ Response:
    - Contains encrypted user ID
    - Required for protected routes
 
-3. **Database Security**:
+3. **Email Verification Security**:
+   - Unique verification codes generated for each request
+   - Token-based verification prevents brute force attempts
+   - 24-hour expiration period for verification codes
+   - Status tracking prevents reuse of verification codes
+   - Protected routes require verified email status
+   - Login requires email verification
+
+4. **Database Security**:
    - Unique constraints on username and email
    - UUID for user and organization IDs
    - Status tracking for users and organizations
@@ -391,6 +587,7 @@ Common error scenarios:
 - Missing required fields
 - Duplicate username/email
 - Invalid token
+- Invalid or expired verification code
 - Server errors
 
 ## Environment Variables
@@ -400,6 +597,7 @@ Required environment variables:
 JWT_SECRET=your_jwt_secret_key
 SUPABASE_URL=your_supabase_url
 SUPABASE_KEY=your_supabase_key
+RESEND_API_KEY=your_resend_api_key
 PORT=3000  # Optional, defaults to 3000
 ```
 
@@ -439,6 +637,7 @@ npm run dev
 - bcryptjs: Password hashing
 - jsonwebtoken: JWT token handling
 - uuid: UUID generation
+- resend: Email service
 - dotenv: Environment variable management
 
 ## Contributing

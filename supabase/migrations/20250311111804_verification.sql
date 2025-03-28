@@ -1,9 +1,10 @@
 -- Create verification table
 CREATE TABLE IF NOT EXISTS verification (
-    id SERIAL PRIMARY KEY,
+   id SERIAL PRIMARY KEY,
     email TEXT NOT NULL,
     token TEXT,
-    status VARCHAR(50),
+    verification_code VARCHAR(10),
+    status VARCHAR(50) DEFAULT 'pending',
     date_created DATE DEFAULT CURRENT_DATE,
     time_created TIME DEFAULT CURRENT_TIME
 );

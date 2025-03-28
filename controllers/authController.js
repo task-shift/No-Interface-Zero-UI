@@ -78,6 +78,16 @@ exports.login = async (req, res) => {
       });
     }
 
+    // Check if user has verified their email
+    if (user.status !== 'verified') {
+      return res.status(403).json({
+        success: false,
+        message: 'Please verify your email before logging in',
+        verificationRequired: true,
+        email: user.email
+      });
+    }
+
     // Generate JWT token
     const token = generateToken(user.user_id);
 

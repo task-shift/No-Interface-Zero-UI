@@ -71,10 +71,19 @@ exports.sendVerificationEmail = async (req, res) => {
     }
 
     // Create verification record and get verification code
-    const { success, verificationCode, error: verificationError } = 
+    const { success, verificationCode, error: verificationError, alreadyVerified } = 
       await VerificationModel.createVerification(email);
 
     if (!success) {
+      // Check if the email is already verified
+      if (alreadyVerified) {
+        return res.status(400).json({
+          success: false,
+          message: 'This email is already verified',
+          alreadyVerified: true
+        });
+      }
+      
       return res.status(400).json({
         success: false,
         message: 'Failed to create verification code',

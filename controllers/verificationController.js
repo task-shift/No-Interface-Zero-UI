@@ -14,6 +14,31 @@ exports.verifyEmail = async (req, res) => {
       });
     }
 
+    // Check if user is already verified
+    const { data: user, error: userCheckError } = await supabase
+      .from('users')
+      .select('status')
+      .eq('email', email)
+      .single();
+
+    if (userCheckError) {
+      console.error('User check error:', userCheckError);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to check user status',
+        error: userCheckError.message
+      });
+    }
+
+    // If user is already verified, return success but indicate already verified
+    if (user && user.status === 'verified') {
+      return res.status(200).json({
+        success: true,
+        message: 'Email is already verified',
+        alreadyVerified: true
+      });
+    }
+
     // Verify the code
     const { success, error } = await VerificationModel.validateVerification(
       email, 

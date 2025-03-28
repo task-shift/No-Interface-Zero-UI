@@ -19,12 +19,6 @@ class VerificationModel {
    */
   static async createVerification(email) {
     try {
-      // Generate verification code
-      const verificationCode = this.generateVerificationCode();
-      
-      // Generate a unique token for this verification (still used internally)
-      const token = crypto.randomBytes(32).toString('hex');
-
       // Check if there's an existing verification for this email
       const { data: existingVerification } = await supabase
         .from('verification')
@@ -32,7 +26,22 @@ class VerificationModel {
         .eq('email', email)
         .single();
 
-      // If verification already exists, update it
+      // If verification already exists and is verified, don't create a new one
+      if (existingVerification && existingVerification.status === 'verified') {
+        return { 
+          success: false, 
+          error: 'Email is already verified',
+          alreadyVerified: true
+        };
+      }
+      
+      // Generate verification code
+      const verificationCode = this.generateVerificationCode();
+      
+      // Generate a unique token for this verification (still used internally)
+      const token = crypto.randomBytes(32).toString('hex');
+
+      // If verification already exists (but not verified), update it
       if (existingVerification) {
         const { data, error } = await supabase
           .from('verification')

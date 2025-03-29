@@ -15,6 +15,30 @@ class TaskModel {
       // Generate a unique task_id
       const task_id = uuidv4();
 
+      // Validate and clean organization_id - handle comma-separated UUIDs
+      let cleanOrgId = organization_id;
+      if (typeof organization_id === 'string' && organization_id.includes(',')) {
+        // If it's a comma-separated list, take only the first UUID
+        cleanOrgId = organization_id.split(',')[0];
+        console.log(`Fixed comma-separated UUIDs in organization_id. Using first UUID: ${cleanOrgId}`);
+      } else if (typeof organization_id !== 'string') {
+        throw new Error(`Invalid organization_id format: ${organization_id}. Must be a UUID string.`);
+      }
+
+      // Validate assignees format - ensure it's a proper object for JSONB
+      const assigneesData = Array.isArray(assignees) ? assignees : [assignees];
+      
+      // Log the data being sent to Supabase (for debugging)
+      console.log('Creating task with data:', {
+        title,
+        description,
+        task_id,
+        user_id,
+        originalOrgId: organization_id,
+        cleanOrgId,
+        assigneesData
+      });
+
       const { data, error } = await supabase
         .from('tasks')
         .insert([
@@ -23,8 +47,8 @@ class TaskModel {
             description,
             task_id,
             user_id,             // Creator's user_id
-            organization_id,
-            assignees,           // Array of assignee details
+            organization_id: cleanOrgId, // Clean UUID string
+            assignees: assigneesData, // Ensure proper JSON format
             status: status || 'pending',
             due_date,
             date_created: new Date(),
@@ -34,9 +58,14 @@ class TaskModel {
         .select('*')
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error creating task:', error);
+        throw error;
+      }
+      
       return { success: true, task: data };
     } catch (error) {
+      console.error('Error in createTask:', error);
       return { success: false, error: error.message };
     }
   }

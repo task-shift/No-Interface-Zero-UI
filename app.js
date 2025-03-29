@@ -5,6 +5,7 @@ const userRoutes = require('./routes/userRoutes');
 const authRoutes = require('./routes/authRoutes');
 const taskRoutes = require('./routes/taskRoutes');
 const organizationRoutes = require('./routes/organizationRoutes');
+const emailRoutes = require('./routes/emailRoutes');
 const testRoutes = require('./routes/testRoutes');
 const { globalLimiter, apiLimiter, testLimiter } = require('./middleware/rateLimiter');
 const { blockBlacklistedIPs } = require('./middleware/ipFilter');
@@ -30,6 +31,7 @@ app.use(globalLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/tasks', apiLimiter, taskRoutes);
 app.use('/api/organizations', apiLimiter, organizationRoutes);
+app.use('/api/email', apiLimiter, emailRoutes);
 app.use('/test', testLimiter, testRoutes);
 app.use('/api', apiLimiter, userRoutes);
 

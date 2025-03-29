@@ -10,8 +10,20 @@ router.use(requireVerifiedUser);
 // Create a new organization
 router.post('/', organizationController.createOrganization);
 
-// Get user's organization details
+// Get all organizations the user belongs to
+router.get('/my-organizations', organizationController.getUserOrganizations);
+
+// Get user's primary organization details (backward compatibility)
 router.get('/me', organizationController.getOrganization);
+
+// Get a specific organization by ID
+router.get('/:organization_id', organizationController.getOrganization);
+
+// Join an organization
+router.post('/join', organizationController.joinOrganization);
+
+// Leave an organization
+router.delete('/:organization_id/leave', organizationController.leaveOrganization);
 
 // List all organizations (admin only)
 router.get('/', requireAdmin, organizationController.listOrganizations);

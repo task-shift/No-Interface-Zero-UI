@@ -44,9 +44,9 @@ class UserModel {
         // date_created and time_created will be handled by default values
       };
 
-      // Only add organization_id if an organization was created
+      // Only add organization_id if an organization was created, store as a JSON array
       if (organization) {
-        userData.organization_id = organization.organization_id;
+        userData.organization_id = [organization.organization_id];
       }
 
       // Now create the user
@@ -75,6 +75,105 @@ class UserModel {
       return response;
     } catch (error) {
       // If anything fails, return the error
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Add a user to an organization
+  static async addUserToOrganization(userId, organizationId) {
+    try {
+      // Get the user first
+      const { data: user, error: userError } = await supabase
+        .from('users')
+        .select('organization_id')
+        .eq('user_id', userId)
+        .single();
+
+      if (userError) throw new Error('User not found');
+
+      // Initialize organization_id array if null
+      let organizationIds = user.organization_id || [];
+      
+      // Add the new organization ID if it doesn't already exist
+      if (!organizationIds.includes(organizationId)) {
+        organizationIds.push(organizationId);
+      }
+
+      // Update the user record
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ organization_id: organizationIds })
+        .eq('user_id', userId);
+
+      if (updateError) throw updateError;
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Remove a user from an organization
+  static async removeUserFromOrganization(userId, organizationId) {
+    try {
+      // Get the user first
+      const { data: user, error: userError } = await supabase
+        .from('users')
+        .select('organization_id')
+        .eq('user_id', userId)
+        .single();
+
+      if (userError) throw new Error('User not found');
+      
+      // Return early if user doesn't have any organizations
+      if (!user.organization_id) {
+        return { success: true, message: 'User is not in any organization' };
+      }
+
+      // Remove the organization ID
+      const organizationIds = user.organization_id.filter(id => id !== organizationId);
+
+      // Update the user record
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ organization_id: organizationIds.length ? organizationIds : null })
+        .eq('user_id', userId);
+
+      if (updateError) throw updateError;
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Get all organizations a user belongs to
+  static async getUserOrganizations(userId) {
+    try {
+      // Get the user's organization IDs
+      const { data: user, error: userError } = await supabase
+        .from('users')
+        .select('organization_id')
+        .eq('user_id', userId)
+        .single();
+
+      if (userError) throw new Error('User not found');
+      
+      // If user is not in any organization, return empty array
+      if (!user.organization_id || user.organization_id.length === 0) {
+        return { success: true, organizations: [] };
+      }
+
+      // Get all organizations the user belongs to
+      const { data: organizations, error: orgError } = await supabase
+        .from('organizations')
+        .select('*')
+        .in('organization_id', user.organization_id);
+
+      if (orgError) throw orgError;
+
+      return { success: true, organizations };
+    } catch (error) {
       return { success: false, error: error.message };
     }
   }

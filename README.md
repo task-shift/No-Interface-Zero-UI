@@ -12,6 +12,21 @@ A robust authentication and organization management system built with Node.js, E
 - Role-based access control (Admin/User)
 - Session management (Online/Offline status)
 
+## Recent Updates
+
+### Email API Improvements (June 2024)
+
+We've added dedicated email API endpoints to improve the email verification process:
+
+- New `/api/email` routes for better organization of email-related functionality
+- Added resend-verification endpoint for users to request new verification emails
+- Improved verification checks to validate user existence before sending emails
+- Added comprehensive checks for multi-user scenarios with the same email
+- Enhanced error handling and messaging for verification processes
+- Secured admin-only test email functionality
+
+See the [Email API Endpoints](#email-api-endpoints) section for more details.
+
 ## Database Schema
 
 ### Users Table
@@ -215,6 +230,107 @@ Response:
 }
 ```
 
+### Email API Endpoints
+
+We've added dedicated email endpoints to provide more flexible email-related functionality:
+
+#### 1. Send Verification Email (Alternative Route)
+This endpoint serves the same function as the auth route, but is available at a different path.
+
+```http
+POST /api/email/send-verification
+Content-Type: application/json
+
+{
+    "email": "user@example.com"  // Email address to verify
+}
+```
+
+Response:
+```json
+{
+    "success": true,
+    "message": "Verification email sent successfully",
+    "data": {
+        "id": "email_123456789",
+        // Other data from the email service
+    }
+}
+```
+
+#### 2. Resend Verification Email
+This endpoint allows a user to request a new verification email if the previous one expired or was lost.
+
+```http
+POST /api/email/resend-verification
+Content-Type: application/json
+
+{
+    "email": "user@example.com"  // Email address to verify
+}
+```
+
+Response:
+```json
+{
+    "success": true,
+    "message": "Verification email sent successfully",
+    "data": {
+        "id": "email_123456789",
+        // Other data from the email service
+    }
+}
+```
+
+#### 3. Check Verification Status
+Check the verification status of an email.
+
+```http
+POST /api/email/check-verification
+Content-Type: application/json
+
+{
+    "email": "user@example.com"  // Email to check
+}
+```
+
+Response:
+```json
+{
+    "success": true,
+    "status": "pending",  // Can be "verified", "pending", "expired", or "not_found"
+    "verified": false
+}
+```
+
+#### 4. Send Test Email (Admin Only)
+This endpoint allows admins to send test emails.
+
+```http
+POST /api/email/test
+Content-Type: application/json
+Authorization: Bearer jwt_token_here
+
+{
+    "to": "recipient@example.com",  // Required - can be a string or array of emails
+    "subject": "Test Subject",      // Optional - default: "Test Email"
+    "content": "Custom content for the email", // Optional - default: "This is a test email from the API."
+    "html": "<p>Test email body</p>" // Optional - override the entire email HTML
+}
+```
+
+Response:
+```json
+{
+    "success": true,
+    "message": "Test email sent successfully",
+    "data": {
+        "id": "email_123456789",
+        // Other data from the email service
+    }
+}
+```
+
 ### User Management
 
 #### Get Current User
@@ -290,6 +406,11 @@ Authorization: Bearer jwt_token_here
     "due_date": "2023-12-31"
 }
 ```
+
+**Important Notes:**
+1. You do not need to send `organization_id` in the request - it will automatically use the organization ID from your user profile.
+2. The `assignees` must be an array of objects with at least `user_id`, `username`, and `fullname` properties.
+3. Do not send `assignees` as a JSON string or stringified array - it should be a proper JSON array in the request.
 
 Response:
 ```json
@@ -525,6 +646,7 @@ Response:
 
 1. **Initiate Verification**:
    - Client calls the send-verification endpoint with the user's email
+   - Server checks if the user exists in the database
    - Server generates a unique verification code
    - Server stores the code in the verification table
    - Server sends an email with the verification code to the user
@@ -535,16 +657,24 @@ Response:
    - Client sends the code and email to the verify-email endpoint
    - Server validates the code against the stored record for that email
    - Server updates the verification status to "verified" if valid
+   - Server updates all users with that email to "verified" status
 
-3. **Status Checking** (optional):
+3. **Resending Verification Emails**:
+   - If a user doesn't receive the email or the code expires
+   - Client can call the resend-verification endpoint with the user's email
+   - Server regenerates a new verification code
+   - Server updates the existing verification record or creates a new one
+   - Server sends a new email with the fresh verification code
+
+4. **Status Checking** (optional):
    - Client can check the verification status at any time
    - Server retrieves the current status from the verification table
    - Server returns the status and a boolean indicating if verification is complete
 
-4. **Expiration Handling**:
+5. **Expiration Handling**:
    - Verification codes automatically expire after 24 hours
    - If a user attempts to verify with an expired code, they receive an error
-   - Users can request a new code by calling the send-verification endpoint again
+   - Users can request a new code by calling the send-verification or resend-verification endpoint
 
 ## Security Features
 
@@ -570,6 +700,7 @@ Response:
    - Rate limiting on all endpoints
    - Stricter limits on authentication endpoints (10 requests/hour per IP)
    - Email verification rate limiting (5 requests/hour per IP)
+   - Dedicated email API rate limiting (5 requests/hour per IP) 
    - API rate limiting (100 requests/15 minutes per IP)
    - Global request limiting (500 requests/15 minutes per IP)
    - Request body size limits (1MB)

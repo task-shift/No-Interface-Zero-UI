@@ -14,7 +14,14 @@
     "test:security:rate-limit": "node tests/security/rateLimiter.test.js",
     "test:security:ip-filter": "node tests/security/ipFilter.test.js",
     "test:security:body-limits": "node tests/security/bodyLimits.test.js",
-    "test:load": "node tests/security/loadTest.js"
+    "test:load": "node tests/security/loadTest.js",
+    "migrate:org-ids": "node scripts/migrate_organization_ids.js",
+    "test:multi-org": "node scripts/test_multi_organization.js",
+    "test:api": "jest tests/api",
+    "test:api:user": "jest tests/api/user.test.js",
+    "test:api:task": "jest tests/api/task.test.js",
+    "test:api:organization": "jest tests/api/organization.test.js",
+    "test:api:email": "jest tests/api/email.test.js"
   },
   "repository": {
     "type": "git",

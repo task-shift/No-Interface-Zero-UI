@@ -26,6 +26,13 @@ class OrganizationModel {
     }
   }
 
+  /**
+   * Create a new organization for a user
+   * @param {Object} params - Parameters
+   * @param {string} params.organization_name - Name of the organization
+   * @param {string} params.user_id - ID of the user creating the organization
+   * @returns {Object} - Object containing success status and organization data
+   */
   static async createOrganization({ organization_name, user_id }) {
     try {
       // Check if organization name already exists
@@ -63,6 +70,11 @@ class OrganizationModel {
     }
   }
 
+  /**
+   * Get an organization by its ID
+   * @param {string} organization_id - ID of the organization
+   * @returns {Object} - Object containing success status and organization data
+   */
   static async getOrganizationById(organization_id) {
     try {
       const { data, error } = await supabase
@@ -73,6 +85,26 @@ class OrganizationModel {
 
       if (error) throw error;
       return { success: true, organization: data };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get all organizations created by a user
+   * @param {string} user_id - ID of the user
+   * @returns {Object} - Object containing success status and array of organizations
+   */
+  static async getOrganizationsByUser(user_id) {
+    try {
+      const { data, error } = await supabase
+        .from('organizations')
+        .select('*')
+        .eq('user_id', user_id)
+        .order('date_created', { ascending: false });
+
+      if (error) throw error;
+      return { success: true, organizations: data };
     } catch (error) {
       return { success: false, error: error.message };
     }

@@ -1,4 +1,5 @@
 const OrganizationModel = require('../models/organizationModel');
+const UserModel = require('../models/userModel');
 const supabase = require('../config/supabase');
 
 // Create a new organization
@@ -36,16 +37,15 @@ exports.createOrganization = async (req, res) => {
       });
     }
 
-    // Update the user's organization_id
-    const { error: updateError } = await supabase
-      .from('users')
-      .update({ organization_id: organization.organization_id })
-      .eq('user_id', req.user.user_id);
-
-    if (updateError) {
+    // Add the organization to the user's organization list
+    const { success: userUpdateSuccess, error: userUpdateError } = 
+      await UserModel.addUserToOrganization(req.user.user_id, organization.organization_id);
+    
+    if (!userUpdateSuccess) {
       return res.status(500).json({
         success: false,
-        message: 'Organization created but failed to update user profile. Please try again.'
+        message: 'Organization created but failed to update user profile',
+        error: userUpdateError
       });
     }
 
@@ -63,20 +63,31 @@ exports.createOrganization = async (req, res) => {
   }
 };
 
-// Get organization details
+// Get organization details by ID
 exports.getOrganization = async (req, res) => {
   try {
-    // Get the user's organization_id
-    const organization_id = req.user.organization_id;
+    const { organization_id } = req.params;
+    
+    // If no organization ID is provided in the route, use the user's primary organization
+    const targetOrgId = organization_id || req.user.organization_id?.[0];
 
-    if (!organization_id) {
+    if (!targetOrgId) {
       return res.status(404).json({
         success: false,
-        message: 'You are not associated with any organization'
+        message: 'No organization ID provided and user is not associated with any organization'
       });
     }
 
-    const { success, organization, error } = await OrganizationModel.getOrganizationById(organization_id);
+    // Verify the user has access to this organization
+    if (req.user.role !== 'admin' && 
+       (!req.user.organization_id || !req.user.organization_id.includes(targetOrgId))) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have access to this organization'
+      });
+    }
+
+    const { success, organization, error } = await OrganizationModel.getOrganizationById(targetOrgId);
 
     if (!success) {
       return res.status(400).json({
@@ -94,6 +105,31 @@ exports.getOrganization = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error fetching organization details'
+    });
+  }
+};
+
+// Get all organizations for the current user
+exports.getUserOrganizations = async (req, res) => {
+  try {
+    const { success, organizations, error } = await UserModel.getUserOrganizations(req.user.user_id);
+
+    if (!success) {
+      return res.status(400).json({
+        success: false,
+        message: error
+      });
+    }
+
+    res.json({
+      success: true,
+      organizations
+    });
+  } catch (error) {
+    console.error('Get user organizations error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error fetching user organizations'
     });
   }
 };
@@ -130,6 +166,94 @@ exports.listOrganizations = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error listing organizations'
+    });
+  }
+};
+
+// Join an organization
+exports.joinOrganization = async (req, res) => {
+  try {
+    const { organization_id } = req.body;
+
+    if (!organization_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Organization ID is required'
+      });
+    }
+
+    // Check if organization exists
+    const { success: orgExists, organization, error: orgError } = 
+      await OrganizationModel.getOrganizationById(organization_id);
+    
+    if (!orgExists) {
+      return res.status(404).json({
+        success: false,
+        message: 'Organization not found'
+      });
+    }
+
+    // Add user to the organization
+    const { success, error } = await UserModel.addUserToOrganization(
+      req.user.user_id, 
+      organization_id
+    );
+
+    if (!success) {
+      return res.status(400).json({
+        success: false,
+        message: error
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Successfully joined organization',
+      organization
+    });
+  } catch (error) {
+    console.error('Join organization error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error joining organization'
+    });
+  }
+};
+
+// Leave an organization
+exports.leaveOrganization = async (req, res) => {
+  try {
+    const { organization_id } = req.params;
+
+    if (!organization_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Organization ID is required'
+      });
+    }
+
+    // Remove user from the organization
+    const { success, error } = await UserModel.removeUserFromOrganization(
+      req.user.user_id, 
+      organization_id
+    );
+
+    if (!success) {
+      return res.status(400).json({
+        success: false,
+        message: error
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Successfully left organization'
+    });
+  } catch (error) {
+    console.error('Leave organization error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error leaving organization'
     });
   }
 }; 

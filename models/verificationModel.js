@@ -20,14 +20,19 @@ class VerificationModel {
   static async createVerification(email) {
     try {
       // Check if there's an existing verification for this email
-      const { data: existingVerification } = await supabase
+      const { data: existingVerifications, error: queryError } = await supabase
         .from('verification')
         .select('*')
         .eq('email', email)
-        .single();
+        .order('date_created', { ascending: false })
+        .limit(1); // Get the most recent verification
 
-      // If verification already exists and is verified, don't create a new one
-      if (existingVerification && existingVerification.status === 'verified') {
+      if (queryError) throw queryError;
+
+      // Check if user is already verified based on the most recent verification
+      if (existingVerifications && 
+          existingVerifications.length > 0 && 
+          existingVerifications[0].status === 'verified') {
         return { 
           success: false, 
           error: 'Email is already verified',
@@ -42,7 +47,8 @@ class VerificationModel {
       const token = crypto.randomBytes(32).toString('hex');
 
       // If verification already exists (but not verified), update it
-      if (existingVerification) {
+      if (existingVerifications && existingVerifications.length > 0) {
+        const existingVerification = existingVerifications[0];
         const { data, error } = await supabase
           .from('verification')
           .update({
@@ -52,7 +58,7 @@ class VerificationModel {
             date_created: new Date(),
             time_created: new Date().toLocaleTimeString()
           })
-          .eq('email', email)
+          .eq('id', existingVerification.id)
           .select()
           .single();
 
@@ -99,16 +105,20 @@ class VerificationModel {
    */
   static async validateVerification(email, verificationCode) {
     try {
-      // Get verification record
-      const { data: verification, error } = await supabase
+      // Get verification records - might have multiple for the same email
+      const { data: verifications, error } = await supabase
         .from('verification')
         .select('*')
         .eq('email', email)
-        .single();
+        .order('date_created', { ascending: false })
+        .limit(1); // Get the most recent verification record
 
-      if (error || !verification) {
+      if (error || !verifications || verifications.length === 0) {
         throw new Error('Verification record not found');
       }
+
+      // Use the most recent verification
+      const verification = verifications[0];
 
       // Check if the verification code matches
       if (verification.verification_code !== verificationCode) {
@@ -149,18 +159,31 @@ class VerificationModel {
    */
   static async getVerificationStatus(email) {
     try {
-      // Get verification record
-      const { data: verification, error } = await supabase
+      // Get verification records - might have multiple for the same email
+      const { data: verifications, error } = await supabase
         .from('verification')
         .select('*')
         .eq('email', email)
-        .single();
+        .order('date_created', { ascending: false })
+        .limit(1); // Get the most recent verification record
 
       if (error) throw error;
 
+      // If no verification record found
+      if (!verifications || verifications.length === 0) {
+        return { 
+          success: true, 
+          status: 'not_found',
+          verification: null
+        };
+      }
+
+      // Use the most recent verification
+      const verification = verifications[0];
+
       return { 
         success: true, 
-        status: verification?.status || 'not_found',
+        status: verification.status,
         verification 
       };
     } catch (error) {

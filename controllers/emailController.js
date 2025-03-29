@@ -3,6 +3,7 @@ const { Resend } = require('resend');
 const { getVerificationEmailTemplate, getTestEmailTemplate } = require('../templates/emails');
 // Import verification model
 const VerificationModel = require('../models/verificationModel');
+const supabase = require('../config/supabase');
 
 // Initialize Resend with API key (should be in env variables in production)
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -70,20 +71,44 @@ exports.sendVerificationEmail = async (req, res) => {
       });
     }
 
+    // First check if user exists in the database
+    const { data: users, error: userCheckError } = await supabase
+      .from('users')
+      .select('user_id, status')
+      .eq('email', email);
+
+    if (userCheckError) {
+      console.error('User check error:', userCheckError);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to check user status',
+        error: userCheckError.message
+      });
+    }
+
+    // If no users found
+    if (!users || users.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No user found with this email address'
+      });
+    }
+
+    // Check if any user with this email is already verified
+    const alreadyVerifiedUser = users.find(user => user.status === 'verified');
+    if (alreadyVerifiedUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'This email is already verified',
+        alreadyVerified: true
+      });
+    }
+
     // Create verification record and get verification code
-    const { success, verificationCode, error: verificationError, alreadyVerified } = 
+    const { success, verificationCode, error: verificationError } = 
       await VerificationModel.createVerification(email);
 
     if (!success) {
-      // Check if the email is already verified
-      if (alreadyVerified) {
-        return res.status(400).json({
-          success: false,
-          message: 'This email is already verified',
-          alreadyVerified: true
-        });
-      }
-      
       return res.status(400).json({
         success: false,
         message: 'Failed to create verification code',

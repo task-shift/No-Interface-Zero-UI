@@ -21,6 +21,12 @@ async function createTestTask(userId, organizationId, title = null) {
   const taskId = uuidv4();
   const taskTitle = title || `Test Task ${Date.now()}`;
   
+  // Ensure organizationId is a string
+  const orgId = String(organizationId);
+  // Clean the organizationId - remove any commas
+  const cleanOrgId = orgId.includes(',') ? orgId.split(',')[0] : orgId;
+  console.log(`Creating test task with org_id: ${cleanOrgId} (type: ${typeof cleanOrgId})`);
+  
   const { data: task, error } = await supabase
     .from('tasks')
     .insert([{
@@ -28,14 +34,19 @@ async function createTestTask(userId, organizationId, title = null) {
       description: 'Task created for testing',
       task_id: taskId,
       user_id: userId,
-      organization_id: organizationId,
-      assignees: [userId],
+      organization_id: cleanOrgId,
+      assignees: [{
+        user_id: userId,
+        username: 'testuser',
+        fullname: 'Test User'
+      }],
       status: 'pending'
     }])
     .select()
     .single();
   
   if (error) {
+    console.error('Error creating test task:', error);
     throw new Error(`Failed to create test task: ${error.message}`);
   }
   

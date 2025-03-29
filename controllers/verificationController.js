@@ -14,12 +14,11 @@ exports.verifyEmail = async (req, res) => {
       });
     }
 
-    // Check if user is already verified
-    const { data: user, error: userCheckError } = await supabase
+    // Check if user is already verified - Handle potential multiple users with same email
+    const { data: users, error: userCheckError } = await supabase
       .from('users')
-      .select('status')
-      .eq('email', email)
-      .single();
+      .select('user_id, status')
+      .eq('email', email);
 
     if (userCheckError) {
       console.error('User check error:', userCheckError);
@@ -30,8 +29,17 @@ exports.verifyEmail = async (req, res) => {
       });
     }
 
-    // If user is already verified, return success but indicate already verified
-    if (user && user.status === 'verified') {
+    // If no users found
+    if (!users || users.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No user found with this email address'
+      });
+    }
+
+    // Check if any user with this email is already verified
+    const alreadyVerifiedUser = users.find(user => user.status === 'verified');
+    if (alreadyVerifiedUser) {
       return res.status(400).json({
         success: false,
         message: 'Email is already verified and cannot be verified again',
@@ -53,18 +61,27 @@ exports.verifyEmail = async (req, res) => {
       });
     }
 
-    // Update user status to verified
-    const { error: userUpdateError } = await supabase
-      .from('users')
-      .update({ status: 'verified' })
-      .eq('email', email);
+    // Update status for all users with this email to verified
+    const updatePromises = users.map(user => {
+      return supabase
+        .from('users')
+        .update({ status: 'verified' })
+        .eq('user_id', user.user_id);
+    });
 
-    if (userUpdateError) {
-      console.error('User verification update error:', userUpdateError);
+    const updateResults = await Promise.all(updatePromises);
+    
+    // Check if any update failed
+    const updateErrors = updateResults
+      .filter(result => result.error)
+      .map(result => result.error.message);
+      
+    if (updateErrors.length > 0) {
+      console.error('User verification update errors:', updateErrors);
       return res.status(500).json({
         success: false,
-        message: 'Failed to update user verification status',
-        error: userUpdateError.message
+        message: 'Failed to update user verification status for some users',
+        errors: updateErrors
       });
     }
 

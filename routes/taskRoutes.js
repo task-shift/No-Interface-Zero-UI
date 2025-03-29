@@ -16,4 +16,7 @@ router.get('/', taskController.getOrganizationTasks);
 // Get specific task by ID
 router.get('/:task_id', taskController.getTaskById);
 
+// Update task - admin or adminx only
+router.put('/:task_id', requireAdminOrAdminX, taskController.updateTask);
+
 module.exports = router; 

@@ -1,102 +1,55 @@
-# No Interface Zero UI - Authentication System
+# No Interface Zero UI - API Documentation
 
-A robust authentication and organization management system built with Node.js, Express, and Supabase.
 
-## Features
+## Base URL
 
-- User registration and authentication
-- Email verification system
-- Organization creation and management
-- JWT-based authentication
-- Password encryption with bcrypt
-- Role-based access control (Admin/User)
-- Session management (Online/Offline status)
+All API endpoints are available under the base URL of your deployed server: `http://localhost:3000` for local development.
 
-## Recent Updates
+## Authorization
 
-### Email API Improvements (June 2024)
+Most endpoints require authorization via a JWT token provided in the `Authorization` header:
 
-We've added dedicated email API endpoints to improve the email verification process:
-
-- New `/api/email` routes for better organization of email-related functionality
-- Added resend-verification endpoint for users to request new verification emails
-- Improved verification checks to validate user existence before sending emails
-- Added comprehensive checks for multi-user scenarios with the same email
-- Enhanced error handling and messaging for verification processes
-- Secured admin-only test email functionality
-
-See the [Email API Endpoints](#email-api-endpoints) section for more details.
-
-## Database Schema
-
-### Users Table
-```sql
-CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
-    fullname TEXT NOT NULL,
-    username TEXT NOT NULL UNIQUE,
-    email TEXT NOT NULL UNIQUE,
-    password TEXT NOT NULL,
-    avatar TEXT,
-    user_id VARCHAR(255) UNIQUE,
-    role TEXT,
-    permission TEXT,
-    organization_id UUID,
-    status VARCHAR(50),  // When verified, this is set to 'verified'
-    online BOOLEAN DEFAULT FALSE,
-    date_created DATE DEFAULT CURRENT_DATE,
-    time_created TIME DEFAULT CURRENT_TIME
-);
+```
+Authorization: Bearer your_jwt_token
 ```
 
-### Organizations Table
-```sql
-CREATE TABLE organizations (
-    id SERIAL PRIMARY KEY,
-    organization_name TEXT NOT NULL,
-    organization_id UUID NOT NULL UNIQUE,
-    user_id TEXT NOT NULL,
-    status VARCHAR(50),
-    date_created DATE DEFAULT CURRENT_DATE,
-    time_created TIME DEFAULT CURRENT_TIME
-);
+## Rate Limiting
+
+The API implements rate limiting to prevent abuse:
+- Authentication endpoints: 10 requests/hour per IP
+- Email verification endpoints: 5 requests/hour per IP
+- General API endpoints: 100 requests/15 minutes per IP
+- Global limit: 500 requests/15 minutes per IP
+
+## Common Response Formats
+
+### Success Response
+
+```json
+{
+    "success": true,
+    "message": "Operation completed successfully",
+    "data": { ... }
+}
 ```
 
-### Verification Table
-```sql
-CREATE TABLE verification (
-    id SERIAL PRIMARY KEY,
-    email TEXT NOT NULL,
-    token TEXT,
-    verification_code VARCHAR(10),
-    status VARCHAR(50) DEFAULT 'pending',
-    date_created DATE DEFAULT CURRENT_DATE,
-    time_created TIME DEFAULT CURRENT_TIME
-);
-```
+### Error Response
 
-### Tasks Table
-```sql
-CREATE TABLE tasks (
-    id SERIAL PRIMARY KEY,
-    title TEXT NOT NULL,
-    description TEXT,
-    task_id TEXT NOT NULL UNIQUE,
-    user_id TEXT NOT NULL,
-    organization_id UUID NOT NULL,
-    assignees JSONB NOT NULL,  -- Array of assignees
-    status VARCHAR(50) DEFAULT 'pending',
-    due_date DATE,
-    date_created DATE DEFAULT CURRENT_DATE,
-    time_created TIME DEFAULT CURRENT_TIME
-);
+```json
+{
+    "success": false,
+    "message": "Description of the error"
+}
 ```
 
 ## API Endpoints
 
-### Authentication
+## Authentication Endpoints
 
-#### Register a New User
+### Register a New User
+
+Creates a new user account with optional organization creation.
+
 ```http
 POST /api/auth/register
 Content-Type: application/json
@@ -111,7 +64,8 @@ Content-Type: application/json
 }
 ```
 
-Response:
+#### Response (Success)
+
 ```json
 {
     "success": true,
@@ -124,7 +78,7 @@ Response:
         "avatar": null,
         "user_id": "uuid_here",
         "role": "admin",
-        "organization_id": "org_uuid_here",  // Only present if organization was created
+        "organization_id": ["org_uuid_here"],  // Array of organization IDs
         "status": "active",
         "organization": {  // Only present if organization was created
             "organization_id": "org_uuid_here",
@@ -134,7 +88,19 @@ Response:
 }
 ```
 
-#### Login
+#### Response (Error - Duplicate Username)
+
+```json
+{
+    "success": false,
+    "message": "Username already exists"
+}
+```
+
+### Login
+
+Authenticates a user using username/email and password.
+
 ```http
 POST /api/auth/login
 Content-Type: application/json
@@ -145,31 +111,102 @@ Content-Type: application/json
 }
 ```
 
-Response (Success):
+#### Response (Success)
+
 ```json
 {
     "success": true,
     "token": "jwt_token_here",
     "user": {
-        // User data including organization details
+        "id": 1,
+        "fullname": "John Doe",
+        "username": "johndoe",
+        "email": "john.doe@example.com",
+        "avatar": null,
+        "user_id": "uuid_here",
+        "role": "admin",
+        "organization_id": ["org_uuid_here"],
+        "current_organization_id": "org_uuid_here",
+        "status": "verified",
+        "online": true
     }
 }
 ```
 
-Response (Unverified Email):
+#### Response (Error - Unverified Email)
+
 ```json
 {
     "success": false,
     "message": "Please verify your email before logging in",
     "verificationRequired": true,
-    "email": "user@example.com"
+    "email": "john.doe@example.com"
 }
 ```
 
-### Email Verification Process
+### Logout
 
-#### 1. Send Verification Email
-Send a verification code to the user's email to verify their identity.
+Logs out the current user.
+
+```http
+POST /api/auth/logout
+Authorization: Bearer jwt_token_here
+```
+
+#### Response
+
+```json
+{
+    "success": true,
+    "message": "Logged out successfully"
+}
+```
+
+### Get Current User
+
+Retrieves the current authenticated user's information.
+
+```http
+GET /api/auth/me
+Authorization: Bearer jwt_token_here
+```
+
+#### Response (Success)
+
+```json
+{
+    "success": true,
+    "user": {
+        "id": 1,
+        "fullname": "John Doe",
+        "username": "johndoe",
+        "email": "john.doe@example.com",
+        "avatar": null,
+        "user_id": "uuid_here",
+        "role": "admin",
+        "organization_id": ["org_uuid_here"],
+        "current_organization_id": "org_uuid_here",
+        "status": "verified",
+        "online": true
+    }
+}
+```
+
+#### Response (Error - Verification Required)
+
+```json
+{
+    "success": false,
+    "message": "Email verification required. Please verify your email to access this resource.",
+    "verificationRequired": true
+}
+```
+
+## Email Verification Endpoints
+
+### Send Verification Email (Auth Route)
+
+Sends a verification code to the user's email.
 
 ```http
 POST /api/auth/send-verification
@@ -180,62 +217,21 @@ Content-Type: application/json
 }
 ```
 
-Response:
+#### Response
+
 ```json
 {
     "success": true,
     "message": "Verification email sent successfully",
     "data": {
-        "id": "email_123456789",
-        // Other data from the email service
+        "id": "email_123456789"
     }
 }
 ```
 
-#### 2. Verify Email with Code
-After the user receives the email and enters the verification code, submit it for verification.
-This will update both the verification record and the user's status to 'verified'.
+### Send Verification Email (Email Route)
 
-```http
-POST /api/auth/verify-email
-Content-Type: application/json
-
-{
-    "email": "user@example.com",
-    "verificationCode": "123456"
-}
-```
-
-Response:
-```json
-{
-    "success": true,
-    "message": "Email verified successfully"
-}
-```
-
-#### 3. Check Verification Status
-You can check the verification status of an email at any time.
-
-```http
-GET /api/auth/verification-status?email=user@example.com
-```
-
-Response:
-```json
-{
-    "success": true,
-    "status": "verified",  // Can be "verified", "pending", "expired", or "not_found"
-    "verified": true
-}
-```
-
-### Email API Endpoints
-
-We've added dedicated email endpoints to provide more flexible email-related functionality:
-
-#### 1. Send Verification Email (Alternative Route)
-This endpoint serves the same function as the auth route, but is available at a different path.
+Alternative route for sending verification emails.
 
 ```http
 POST /api/email/send-verification
@@ -246,20 +242,21 @@ Content-Type: application/json
 }
 ```
 
-Response:
+#### Response
+
 ```json
 {
     "success": true,
     "message": "Verification email sent successfully",
     "data": {
-        "id": "email_123456789",
-        // Other data from the email service
+        "id": "email_123456789"
     }
 }
 ```
 
-#### 2. Resend Verification Email
-This endpoint allows a user to request a new verification email if the previous one expired or was lost.
+### Resend Verification Email
+
+Resends a verification email for users who didn't receive the first one or whose code expired.
 
 ```http
 POST /api/email/resend-verification
@@ -270,20 +267,71 @@ Content-Type: application/json
 }
 ```
 
-Response:
+#### Response
+
 ```json
 {
     "success": true,
     "message": "Verification email sent successfully",
     "data": {
-        "id": "email_123456789",
-        // Other data from the email service
+        "id": "email_123456789"
     }
 }
 ```
 
-#### 3. Check Verification Status
-Check the verification status of an email.
+### Verify Email with Code
+
+Verifies an email using the verification code sent to the user.
+
+```http
+POST /api/auth/verify-email
+Content-Type: application/json
+
+{
+    "email": "user@example.com",
+    "verificationCode": "123456"  // 6-digit code from the email
+}
+```
+
+#### Response (Success)
+
+```json
+{
+    "success": true,
+    "message": "Email verified successfully"
+}
+```
+
+#### Response (Error - Invalid Code)
+
+```json
+{
+    "success": false,
+    "message": "Invalid verification code"
+}
+```
+
+### Check Verification Status (Auth Route)
+
+Checks if an email has been verified.
+
+```http
+GET /api/auth/verification-status?email=user@example.com
+```
+
+#### Response
+
+```json
+{
+    "success": true,
+    "status": "verified",  // Can be "verified", "pending", "expired", or "not_found"
+    "verified": true
+}
+```
+
+### Check Verification Status (Email Route)
+
+Alternative route for checking email verification status.
 
 ```http
 POST /api/email/check-verification
@@ -294,7 +342,8 @@ Content-Type: application/json
 }
 ```
 
-Response:
+#### Response
+
 ```json
 {
     "success": true,
@@ -303,8 +352,9 @@ Response:
 }
 ```
 
-#### 4. Send Test Email (Admin Only)
-This endpoint allows admins to send test emails.
+### Send Test Email (Admin Only)
+
+Sends a test email (restricted to admin users).
 
 ```http
 POST /api/email/test
@@ -319,65 +369,293 @@ Authorization: Bearer jwt_token_here
 }
 ```
 
-Response:
+#### Response
+
 ```json
 {
     "success": true,
     "message": "Test email sent successfully",
     "data": {
-        "id": "email_123456789",
-        // Other data from the email service
+        "id": "email_123456789"
     }
 }
 ```
 
-### User Management
+## Organization Endpoints
 
-#### Get Current User
-Requires a verified email.
+All organization endpoints require a verified user (email verified).
+
+### Create Organization
+
+Creates a new organization.
 
 ```http
-GET /api/auth/me
+POST /api/organizations
+Content-Type: application/json
 Authorization: Bearer jwt_token_here
+
+{
+    "organization_name": "New Company Inc."
+}
 ```
 
-Response:
+#### Response (Success)
+
 ```json
 {
     "success": true,
-    "user": {
-        // User data
+    "message": "Organization created successfully",
+    "organization": {
+        "id": 1,
+        "organization_name": "New Company Inc.",
+        "organization_id": "org_uuid_here",
+        "user_id": "creator_user_id",
+        "status": "active",
+        "date_created": "2023-08-15",
+        "time_created": "14:30:00"
     }
 }
 ```
 
-Response (Unverified Email):
+#### Response (Error - Duplicate Organization)
+
 ```json
 {
     "success": false,
-    "message": "Email verification required. Please verify your email to access this resource.",
-    "verificationRequired": true
+    "message": "An organization with this name already exists",
+    "error": "DUPLICATE_ORGANIZATION_NAME"
 }
 ```
 
-#### Logout
+### Get User's Organizations
+
+Returns all organizations the current user belongs to.
+
 ```http
-POST /api/auth/logout
+GET /api/organizations/my-organizations
 Authorization: Bearer jwt_token_here
 ```
 
-Response:
+#### Response
+
 ```json
 {
     "success": true,
-    "message": "Logged out successfully"
+    "organizations": [
+        {
+            "id": 1,
+            "organization_name": "Company A",
+            "organization_id": "org_uuid_1",
+            "user_id": "creator_user_id",
+            "status": "active",
+            "date_created": "2023-08-15",
+            "time_created": "14:30:00"
+        },
+        {
+            "id": 2,
+            "organization_name": "Company B",
+            "organization_id": "org_uuid_2",
+            "user_id": "other_user_id",
+            "status": "active",
+            "date_created": "2023-08-16",
+            "time_created": "10:15:00"
+        }
+    ]
 }
 ```
 
-### Tasks
-All task endpoints require a verified email.
+### Get User's Primary Organization
 
-#### Create a Task (Admin/AdminX only)
+Returns the user's primary organization (for backward compatibility).
+
+```http
+GET /api/organizations/me
+Authorization: Bearer jwt_token_here
+```
+
+#### Response
+
+```json
+{
+    "success": true,
+    "organization": {
+        "id": 1,
+        "organization_name": "Company A",
+        "organization_id": "org_uuid_here",
+        "user_id": "creator_user_id",
+        "status": "active",
+        "date_created": "2023-08-15",
+        "time_created": "14:30:00"
+    }
+}
+```
+
+### Get Organization by ID
+
+Returns a specific organization by ID.
+
+```http
+GET /api/organizations/:organization_id
+Authorization: Bearer jwt_token_here
+```
+
+#### Response
+
+```json
+{
+    "success": true,
+    "organization": {
+        "id": 1,
+        "organization_name": "Company A",
+        "organization_id": "org_uuid_here",
+        "user_id": "creator_user_id",
+        "status": "active",
+        "date_created": "2023-08-15",
+        "time_created": "14:30:00"
+    }
+}
+```
+
+### Join Organization
+
+Adds the current user to an organization.
+
+```http
+POST /api/organizations/join
+Content-Type: application/json
+Authorization: Bearer jwt_token_here
+
+{
+    "organization_id": "org_uuid_here"
+}
+```
+
+#### Response
+
+```json
+{
+    "success": true,
+    "message": "Successfully joined organization",
+    "organization": {
+        "id": 1,
+        "organization_name": "Company A",
+        "organization_id": "org_uuid_here",
+        "user_id": "creator_user_id",
+        "status": "active",
+        "date_created": "2023-08-15",
+        "time_created": "14:30:00"
+    }
+}
+```
+
+### Leave Organization
+
+Removes the current user from an organization.
+
+```http
+DELETE /api/organizations/:organization_id/leave
+Authorization: Bearer jwt_token_here
+```
+
+#### Response
+
+```json
+{
+    "success": true,
+    "message": "Successfully left organization"
+}
+```
+
+### Set Current Organization
+
+Sets a specific organization as the user's current active organization.
+
+```http
+POST /api/organizations/set-current
+Content-Type: application/json
+Authorization: Bearer jwt_token_here
+
+{
+    "organization_id": "org_uuid_here"  // UUID of the organization to set as current
+}
+```
+
+#### Response (Success)
+
+```json
+{
+    "success": true,
+    "message": "Current organization set successfully",
+    "user": {
+        "id": 1,
+        "fullname": "John Doe",
+        "username": "johndoe",
+        "email": "john.doe@example.com",
+        "avatar": null,
+        "user_id": "uuid_here",
+        "role": "admin",
+        "organization_id": ["org_uuid_1", "org_uuid_2"],  // All organizations the user belongs to
+        "current_organization_id": "org_uuid_here",  // The newly set current organization
+        "status": "verified"
+    }
+}
+```
+
+#### Response (Error - Not Member)
+
+```json
+{
+    "success": false,
+    "message": "You are not a member of this organization",
+    "error": "NOT_MEMBER"
+}
+```
+
+### List All Organizations (Admin Only)
+
+Returns a list of all organizations (restricted to admin users).
+
+```http
+GET /api/organizations
+Authorization: Bearer jwt_token_here
+```
+
+#### Response
+
+```json
+{
+    "success": true,
+    "organizations": [
+        {
+            "id": 1,
+            "organization_name": "Company A",
+            "organization_id": "org_uuid_1",
+            "user_id": "user_id_1",
+            "status": "active",
+            "date_created": "2023-08-15",
+            "time_created": "14:30:00"
+        },
+        {
+            "id": 2,
+            "organization_name": "Company B",
+            "organization_id": "org_uuid_2",
+            "user_id": "user_id_2",
+            "status": "active",
+            "date_created": "2023-08-16",
+            "time_created": "10:15:00"
+        }
+    ]
+}
+```
+
+## Task Endpoints
+
+All task endpoints require a verified user (email verified).
+
+### Create Task (Admin/AdminX Only)
+
+Creates a new task in the user's current organization.
+
 ```http
 POST /api/tasks
 Content-Type: application/json
@@ -407,12 +685,8 @@ Authorization: Bearer jwt_token_here
 }
 ```
 
-**Important Notes:**
-1. You do not need to send `organization_id` in the request - it will automatically use the organization ID from your user profile.
-2. The `assignees` must be an array of objects with at least `user_id`, `username`, and `fullname` properties.
-3. Do not send `assignees` as a JSON string or stringified array - it should be a proper JSON array in the request.
+#### Response
 
-Response:
 ```json
 {
     "success": true,
@@ -447,120 +721,169 @@ Response:
 }
 ```
 
-#### Get All Organization Tasks
+### Get All Organization Tasks
+
+Returns all tasks for the user's current organization.
+
 ```http
 GET /api/tasks
 Authorization: Bearer jwt_token_here
 ```
 
-Response:
+#### Response
+
 ```json
 {
     "success": true,
     "tasks": [
         {
-            // Task data
+            "id": 1,
+            "title": "Task 1",
+            "description": "Task 1 description",
+            "task_id": "task_uuid_1",
+            "user_id": "creator_user_id",
+            "organization_id": "org_uuid_here",
+            "assignees": [
+                {
+                    "user_id": "user1_uuid_here",
+                    "username": "janesmith",
+                    "fullname": "Jane Smith"
+                }
+            ],
+            "status": "pending",
+            "due_date": "2023-12-15",
+            "date_created": "2023-08-15",
+            "time_created": "14:30:00"
         },
         {
-            // Task data
+            "id": 2,
+            "title": "Task 2",
+            "description": "Task 2 description",
+            "task_id": "task_uuid_2",
+            "user_id": "creator_user_id",
+            "organization_id": "org_uuid_here",
+            "assignees": [
+                {
+                    "user_id": "user2_uuid_here",
+                    "username": "johndoe",
+                    "fullname": "John Doe"
+                }
+            ],
+            "status": "in_progress",
+            "due_date": "2023-12-20",
+            "date_created": "2023-08-16",
+            "time_created": "09:15:00"
         }
     ]
 }
 ```
 
-#### Get Task by ID
+### Get Task by ID
+
+Returns a specific task by ID.
+
 ```http
 GET /api/tasks/:task_id
 Authorization: Bearer jwt_token_here
 ```
 
-Response:
+#### Response
+
 ```json
 {
     "success": true,
     "task": {
-        // Task data
+        "id": 1,
+        "title": "Task 1",
+        "description": "Task 1 description",
+        "task_id": "task_uuid_1",
+        "user_id": "creator_user_id",
+        "organization_id": "org_uuid_here",
+        "assignees": [
+            {
+                "user_id": "user1_uuid_here",
+                "username": "janesmith",
+                "fullname": "Jane Smith"
+            }
+        ],
+        "status": "pending",
+        "due_date": "2023-12-15",
+        "date_created": "2023-08-15",
+        "time_created": "14:30:00"
     }
 }
 ```
 
-### Organizations
-All organization endpoints require a verified email.
+### Update Task (Admin/AdminX Only)
 
-#### Create Organization
+Updates an existing task.
+
 ```http
-POST /api/organizations
+PUT /api/tasks/:task_id
 Content-Type: application/json
 Authorization: Bearer jwt_token_here
 
 {
-    "organization_name": "New Company Inc."
-}
-```
-
-Response:
-```json
-{
-    "success": true,
-    "message": "Organization created successfully",
-    "organization": {
-        "id": 1,
-        "organization_name": "New Company Inc.",
-        "organization_id": "org_uuid_here",
-        "user_id": "creator_user_id",
-        "status": "active",
-        "date_created": "2023-08-15",
-        "time_created": "14:30:00"
-    }
-}
-```
-
-#### Get User's Organization
-```http
-GET /api/organizations/me
-Authorization: Bearer jwt_token_here
-```
-
-Response:
-```json
-{
-    "success": true,
-    "organization": {
-        "id": 1,
-        "organization_name": "New Company Inc.",
-        "organization_id": "org_uuid_here",
-        "user_id": "creator_user_id",
-        "status": "active",
-        "date_created": "2023-08-15",
-        "time_created": "14:30:00"
-    }
-}
-```
-
-#### List All Organizations (Admin only)
-```http
-GET /api/organizations
-Authorization: Bearer jwt_token_here
-```
-
-Response:
-```json
-{
-    "success": true,
-    "organizations": [
+    "title": "Updated Task Title",
+    "description": "Updated task description",
+    "status": "in_progress",
+    "due_date": "2023-12-25",
+    "assignees": [
         {
-            // Organization data
+            "user_id": "user1_uuid_here",
+            "username": "janesmith",
+            "fullname": "Jane Smith"
         },
         {
-            // Organization data
+            "user_id": "user3_uuid_here",
+            "username": "maryjohnson",
+            "fullname": "Mary Johnson"
         }
     ]
 }
 ```
 
-### Test Endpoints
+#### Response
 
-#### Send Test Email
+```json
+{
+    "success": true,
+    "task": {
+        "id": 1,
+        "title": "Updated Task Title",
+        "description": "Updated task description",
+        "task_id": "task_uuid_1",
+        "user_id": "creator_user_id",
+        "organization_id": "org_uuid_here",
+        "assignees": [
+            {
+                "user_id": "user1_uuid_here",
+                "username": "janesmith",
+                "fullname": "Jane Smith"
+            },
+            {
+                "user_id": "user3_uuid_here",
+                "username": "maryjohnson",
+                "fullname": "Mary Johnson"
+            }
+        ],
+        "status": "in_progress",
+        "due_date": "2023-12-25",
+        "date_created": "2023-08-15",
+        "time_created": "14:30:00"
+    },
+    "message": "Task updated successfully"
+}
+```
+
+## Test Endpoints
+
+These endpoints are intended for testing purposes only and should not be used in production.
+
+### Send Test Email
+
+Sends a test email without requiring authentication.
+
 ```http
 POST /test/emails
 Content-Type: application/json
@@ -573,19 +896,22 @@ Content-Type: application/json
 }
 ```
 
-Response:
+#### Response
+
 ```json
 {
     "success": true,
     "message": "Test email sent successfully",
     "data": {
-        "id": "email_123456789",
-        // Other data from the email service
+        "id": "email_123456789"
     }
 }
 ```
 
-#### Send Verification Email (Test)
+### Send Verification Email (Test)
+
+Sends a verification email without requiring authentication.
+
 ```http
 POST /test/verification-email
 Content-Type: application/json
@@ -596,213 +922,47 @@ Content-Type: application/json
 }
 ```
 
-Response:
+#### Response
+
 ```json
 {
     "success": true,
     "message": "Verification email sent successfully",
     "data": {
-        "id": "email_123456789",
-        // Other data from the email service
+        "id": "email_123456789"
     }
 }
 ```
 
-## Process Flows
+## Error Status Codes
 
-### Authentication Flow
+- **400 Bad Request**: Invalid input, missing required fields
+- **401 Unauthorized**: Invalid or missing authentication token
+- **403 Forbidden**: Not enough permissions to access the resource
+- **404 Not Found**: Resource not found
+- **409 Conflict**: Resource already exists (e.g., duplicate username)
+- **429 Too Many Requests**: Rate limit exceeded
+- **500 Internal Server Error**: Server error
 
-1. **Registration**:
-   - User provides registration details
-   - If organization name is provided, system creates organization (optional)
-   - System creates user with optional organization association
-   - Returns JWT token and user data
+## Authentication Errors
 
-2. **Email Verification**:
-   - After registration, user receives a verification email 
-   - User enters the code to verify their email
-   - User status is updated to 'verified'
-
-3. **Login**:
-   - User provides username/email and password
-   - System verifies credentials
-   - System checks if user has verified their email
-   - If verified, returns JWT token and user data
-   - If not verified, returns error with verification required flag
-
-4. **Protected Routes**:
-   - Client includes JWT token in Authorization header
-   - Server validates token
-   - Server checks if user has verified their email
-   - If verified, grants access to protected resources
-   - If not verified, returns 403 with verification required message
-
-5. **Logout**:
-   - Client sends logout request with JWT token
-   - Server updates user's online status
-   - Client removes token from storage
-
-### Email Verification Flow
-
-1. **Initiate Verification**:
-   - Client calls the send-verification endpoint with the user's email
-   - Server checks if the user exists in the database
-   - Server generates a unique verification code
-   - Server stores the code in the verification table
-   - Server sends an email with the verification code to the user
-
-2. **User Verification**:
-   - User receives the email with the verification code
-   - User enters the code in the application
-   - Client sends the code and email to the verify-email endpoint
-   - Server validates the code against the stored record for that email
-   - Server updates the verification status to "verified" if valid
-   - Server updates all users with that email to "verified" status
-
-3. **Resending Verification Emails**:
-   - If a user doesn't receive the email or the code expires
-   - Client can call the resend-verification endpoint with the user's email
-   - Server regenerates a new verification code
-   - Server updates the existing verification record or creates a new one
-   - Server sends a new email with the fresh verification code
-
-4. **Status Checking** (optional):
-   - Client can check the verification status at any time
-   - Server retrieves the current status from the verification table
-   - Server returns the status and a boolean indicating if verification is complete
-
-5. **Expiration Handling**:
-   - Verification codes automatically expire after 24 hours
-   - If a user attempts to verify with an expired code, they receive an error
-   - Users can request a new code by calling the send-verification or resend-verification endpoint
-
-## Security Features
-
-1. **Password Security**:
-   - Passwords are hashed using bcrypt
-   - Salt rounds: 10
-   - Never stored in plain text
-
-2. **JWT Token**:
-   - Expires after 24 hours
-   - Contains encrypted user ID
-   - Required for protected routes
-
-3. **Email Verification Security**:
-   - Unique verification codes generated for each request
-   - Token-based verification prevents brute force attempts
-   - 24-hour expiration period for verification codes
-   - Status tracking prevents reuse of verification codes
-   - Protected routes require verified email status
-   - Login requires email verification
-
-4. **DDOS Protection**:
-   - Rate limiting on all endpoints
-   - Stricter limits on authentication endpoints (10 requests/hour per IP)
-   - Email verification rate limiting (5 requests/hour per IP)
-   - Dedicated email API rate limiting (5 requests/hour per IP) 
-   - API rate limiting (100 requests/15 minutes per IP)
-   - Global request limiting (500 requests/15 minutes per IP)
-   - Request body size limits (1MB)
-   - IP blacklisting for known malicious IPs
-   - Trust proxy configuration for proper IP detection behind load balancers
-
-5. **HTTP Security**:
-   - Helmet.js for setting secure HTTP headers
-   - Content Security Policy
-   - XSS Protection
-   - Protection against clickjacking
-   - Preventing MIME type sniffing
-   - CORS protection
-   - Express validator for input sanitization and validation
-
-6. **Database Security**:
-   - Unique constraints on username and email
-   - UUID for user and organization IDs
-   - Status tracking for users and organizations
-   - Prepared statements to prevent SQL injection
-
-## Error Handling
-
-The API returns consistent error responses:
+When authentication is required but not provided or invalid:
 
 ```json
 {
     "success": false,
-    "message": "Error description here"
+    "message": "Authentication required. Please log in."
 }
 ```
 
-Common error scenarios:
-- Invalid credentials
-- Missing required fields
-- Duplicate username/email
-- Invalid token
-- Invalid or expired verification code
-- Server errors
+## Verification Errors
 
-## Environment Variables
+When email verification is required but not completed:
 
-Required environment variables:
-```bash
-JWT_SECRET=your_jwt_secret_key
-SUPABASE_URL=your_supabase_url
-SUPABASE_KEY=your_supabase_key
-RESEND_API_KEY=your_resend_api_key
-PORT=3000  # Optional, defaults to 3000
+```json
+{
+    "success": false,
+    "message": "Email verification required. Please verify your email to access this resource.",
+    "verificationRequired": true
+}
 ```
-
-## Installation
-
-1. Clone the repository:
-```bash
-git clone https://github.com/your-username/no-interface-zero-ui.git
-cd no-interface-zero-ui
-```
-
-2. Install dependencies:
-```bash
-npm install
-```
-
-3. Set up environment variables:
-```bash
-cp .env.example .env
-# Edit .env with your values
-```
-
-4. Start the server:
-```bash
-npm start
-```
-
-For development:
-```bash
-npm run dev
-```
-
-## Dependencies
-
-- express: Web framework
-- @supabase/supabase-js: Database client
-- bcryptjs: Password hashing
-- jsonwebtoken: JWT token handling
-- uuid: UUID generation
-- resend: Email service
-- dotenv: Environment variable management
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a new Pull Request
-
-## License
-
-ISC License
-
-## Support
-
-For support, email support@example.com or create an issue in the repository.

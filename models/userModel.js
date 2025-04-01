@@ -196,12 +196,26 @@ class UserModel {
       if (!isValidPassword) {
         throw new Error('Invalid password');
       }
-
-      // Update online status
-      await supabase
-        .from('users')
-        .update({ online: true })
-        .eq('id', user.id);
+      
+      // If user has no current_organization_id set but belongs to organizations, set the first one
+      if (!user.current_organization_id && user.organization_id && user.organization_id.length > 0) {
+        // Set the first organization as current
+        await supabase
+          .from('users')
+          .update({ 
+            current_organization_id: user.organization_id[0],
+            online: true 
+          })
+          .eq('id', user.id);
+          
+        user.current_organization_id = user.organization_id[0];
+      } else {
+        // Just update online status
+        await supabase
+          .from('users')
+          .update({ online: true })
+          .eq('id', user.id);
+      }
 
       // Don't send password back
       delete user.password;
@@ -230,13 +244,62 @@ class UserModel {
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('id, fullname, username, email, avatar, user_id, role, organization_id, status, online')
+        .select('id, fullname, username, email, avatar, user_id, role, organization_id, status, online, current_organization_id')
         .eq('user_id', userId)
         .single();
 
       if (error) throw error;
       return { success: true, user: data };
     } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Set current organization for a user
+  static async setCurrentOrganization(userId, organizationId) {
+    try {
+      console.log(`Setting current organization for user ${userId} to ${organizationId}`);
+      
+      // First, validate the user belongs to this organization
+      const { data: user, error: userError } = await supabase
+        .from('users')
+        .select('organization_id')
+        .eq('user_id', userId)
+        .single();
+
+      if (userError) {
+        console.error(`User check error: ${userError.message}`);
+        throw new Error('User not found');
+      }
+      
+      console.log(`User organization_id value: ${JSON.stringify(user.organization_id)}`);
+      
+      // Check if the organization ID is in the user's list of organizations
+      if (!user.organization_id || !user.organization_id.includes(organizationId)) {
+        console.error(`User is not a member of organization ${organizationId}. User belongs to: ${JSON.stringify(user.organization_id)}`);
+        throw new Error('User is not a member of this organization');
+      }
+
+      // Update the current_organization_id
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ current_organization_id: organizationId })
+        .eq('user_id', userId);
+
+      if (updateError) {
+        console.error(`Update error: ${updateError.message}`);
+        throw updateError;
+      }
+
+      console.log(`Successfully set current organization to ${organizationId} for user ${userId}`);
+      
+      return { 
+        success: true, 
+        message: 'Current organization updated successfully',
+        organizationId
+      };
+    } catch (error) {
+      console.error(`Error setting current organization: ${error.message}`);
       return { success: false, error: error.message };
     }
   }

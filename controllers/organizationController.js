@@ -256,4 +256,63 @@ exports.leaveOrganization = async (req, res) => {
       message: 'Server error leaving organization'
     });
   }
+};
+
+// Set current organization
+exports.setCurrentOrganization = async (req, res) => {
+  try {
+    const { organization_id } = req.body;
+
+    if (!organization_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Organization ID is required'
+      });
+    }
+
+    // Set the current organization
+    const { success, error, organizationId } = await UserModel.setCurrentOrganization(
+      req.user.user_id,
+      organization_id
+    );
+
+    if (!success) {
+      // Check if the error is about permissions
+      if (error.includes('not a member')) {
+        return res.status(403).json({
+          success: false,
+          message: 'You are not a member of this organization',
+          error: 'NOT_MEMBER'
+        });
+      }
+      
+      return res.status(400).json({
+        success: false,
+        message: error
+      });
+    }
+
+    // Get the updated user information
+    const { success: userSuccess, user, error: userError } = await UserModel.getUserById(req.user.user_id);
+
+    if (!userSuccess) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to retrieve updated user information',
+        error: userError
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Current organization set successfully',
+      user
+    });
+  } catch (error) {
+    console.error('Set current organization error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error setting current organization'
+    });
+  }
 }; 

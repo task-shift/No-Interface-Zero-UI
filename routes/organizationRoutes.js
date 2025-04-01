@@ -25,6 +25,9 @@ router.post('/join', organizationController.joinOrganization);
 // Leave an organization
 router.delete('/:organization_id/leave', organizationController.leaveOrganization);
 
+// Set current organization
+router.post('/set-current', organizationController.setCurrentOrganization);
+
 // List all organizations (admin only)
 router.get('/', requireAdmin, organizationController.listOrganizations);
 

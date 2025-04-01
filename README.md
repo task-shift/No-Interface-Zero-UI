@@ -537,6 +537,48 @@ Response:
 }
 ```
 
+#### Set Current Organization
+Use this endpoint to set a user's active organization context when they belong to multiple organizations.
+
+```http
+POST /api/organizations/set-current
+Content-Type: application/json
+Authorization: Bearer jwt_token_here
+
+{
+    "organization_id": "org_uuid_here"  // UUID of the organization to set as current
+}
+```
+
+Response:
+```json
+{
+    "success": true,
+    "message": "Current organization set successfully",
+    "user": {
+        "id": 1,
+        "fullname": "John Doe",
+        "username": "johndoe",
+        "email": "john.doe@example.com",
+        "avatar": null,
+        "user_id": "uuid_here",
+        "role": "admin",
+        "organization_id": ["org_uuid_1", "org_uuid_2"],  // All organizations the user belongs to
+        "current_organization_id": "org_uuid_here",  // The newly set current organization
+        "status": "verified"
+    }
+}
+```
+
+Error response (if user is not a member):
+```json
+{
+    "success": false,
+    "message": "You are not a member of this organization",
+    "error": "NOT_MEMBER"
+}
+```
+
 #### List All Organizations (Admin only)
 ```http
 GET /api/organizations

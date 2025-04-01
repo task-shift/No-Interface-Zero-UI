@@ -13,8 +13,8 @@ exports.createTask = async (req, res) => {
       due_date 
     } = req.body;
 
-    // Check if user has an organization
-    if (!req.user.organization_id) {
+    // Check if user has organizations
+    if (!req.user.organization_id || !req.user.organization_id.length) {
       return res.status(400).json({
         success: false,
         message: 'You must be associated with an organization to create tasks. Please join or create an organization first.'
@@ -55,12 +55,20 @@ exports.createTask = async (req, res) => {
       }
     }
 
-    // Log the organization_id for debugging
-    console.log(`Using organization_id: ${req.user.organization_id} (type: ${typeof req.user.organization_id})`);
+    // Get organization ID from current_organization_id, with fallback to the first organization_id
+    let orgId = req.user.current_organization_id;
+    
+    // If current_organization_id is not set, fall back to the first one in the array
+    if (!orgId && req.user.organization_id && req.user.organization_id.length > 0) {
+      orgId = req.user.organization_id[0];
+      console.log(`No current_organization_id set, falling back to first organization: ${orgId}`);
+    }
 
-    // Clean up organization_id if it contains commas
-    let orgId = String(req.user.organization_id);
-    if (orgId.includes(',')) {
+    // Log the organization_id for debugging
+    console.log(`Using organization_id: ${orgId} (type: ${typeof orgId})`);
+
+    // Clean up organization_id if it contains commas (legacy support)
+    if (typeof orgId === 'string' && orgId.includes(',')) {
       orgId = orgId.split(',')[0];
       console.log(`Found comma in organization_id, using first value: ${orgId}`);
     }
@@ -70,7 +78,7 @@ exports.createTask = async (req, res) => {
       title,
       description,
       user_id: req.user.user_id, // Creator (logged in admin)
-      organization_id: orgId, // Use the cleaned organization_id
+      organization_id: orgId, // Use the current organization ID
       assignees, // Now an array of assignees
       status,
       due_date
@@ -100,9 +108,31 @@ exports.createTask = async (req, res) => {
 
 exports.getOrganizationTasks = async (req, res) => {
   try {
-    const { success, tasks, error } = await TaskModel.getTasksByOrganization(
-      req.user.organization_id
-    );
+    // Get organization ID from current_organization_id, with fallback to the first organization_id
+    let orgId = req.user.current_organization_id;
+    
+    // If current_organization_id is not set, fall back to the first one in the array
+    if (!orgId && req.user.organization_id && req.user.organization_id.length > 0) {
+      orgId = req.user.organization_id[0];
+      console.log(`No current_organization_id set for task listing, falling back to first organization: ${orgId}`);
+    }
+
+    // Clean up organization_id if it contains commas (legacy support)
+    if (typeof orgId === 'string' && orgId.includes(',')) {
+      orgId = orgId.split(',')[0];
+    }
+
+    // Return error if no organization is available
+    if (!orgId) {
+      return res.status(400).json({
+        success: false,
+        message: 'No organization context found. Please set a current organization or join an organization.'
+      });
+    }
+
+    console.log(`Fetching tasks for organization: ${orgId}`);
+
+    const { success, tasks, error } = await TaskModel.getTasksByOrganization(orgId);
 
     if (!success) {
       return res.status(400).json({
@@ -136,9 +166,16 @@ exports.getTaskById = async (req, res) => {
       });
     }
 
-    // Check if task belongs to user's organization
-    let userOrgId = String(req.user.organization_id);
-    if (userOrgId.includes(',')) {
+    // Get organization ID from current_organization_id, with fallback to the first organization_id
+    let userOrgId = req.user.current_organization_id;
+    
+    // If current_organization_id is not set, fall back to the first one in the array
+    if (!userOrgId && req.user.organization_id && req.user.organization_id.length > 0) {
+      userOrgId = req.user.organization_id[0];
+    }
+
+    // Clean up organization_id if it contains commas (legacy support)
+    if (typeof userOrgId === 'string' && userOrgId.includes(',')) {
       userOrgId = userOrgId.split(',')[0];
     }
     
@@ -148,7 +185,12 @@ exports.getTaskById = async (req, res) => {
       taskOrgId = taskOrgId.split(',')[0];
     }
     
-    if (taskOrgId !== userOrgId) {
+    // For admin users, allow access to any task
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'adminx';
+    
+    // Check if task belongs to user's current organization
+    if (!isAdmin && taskOrgId !== userOrgId) {
+      console.log(`Access denied: Task org (${taskOrgId}) doesn't match user's current org (${userOrgId})`);
       return res.status(403).json({
         success: false,
         message: 'Not authorized to access this task'
@@ -160,6 +202,7 @@ exports.getTaskById = async (req, res) => {
       task
     });
   } catch (error) {
+    console.error('Get task error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error fetching task'
@@ -184,9 +227,16 @@ exports.updateTask = async (req, res) => {
       });
     }
     
-    // Check if task belongs to user's organization
-    let userOrgId = String(req.user.organization_id);
-    if (userOrgId.includes(',')) {
+    // Get organization ID from current_organization_id, with fallback to the first organization_id
+    let userOrgId = req.user.current_organization_id;
+    
+    // If current_organization_id is not set, fall back to the first one in the array
+    if (!userOrgId && req.user.organization_id && req.user.organization_id.length > 0) {
+      userOrgId = req.user.organization_id[0];
+    }
+
+    // Clean up organization_id if it contains commas (legacy support)
+    if (typeof userOrgId === 'string' && userOrgId.includes(',')) {
       userOrgId = userOrgId.split(',')[0];
     }
     
@@ -196,14 +246,19 @@ exports.updateTask = async (req, res) => {
       taskOrgId = taskOrgId.split(',')[0];
     }
     
-    if (taskOrgId !== userOrgId) {
+    // For admin users, allow updating any task
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'adminx';
+    
+    // Check if task belongs to user's current organization
+    if (!isAdmin && taskOrgId !== userOrgId) {
+      console.log(`Update denied: Task org (${taskOrgId}) doesn't match user's current org (${userOrgId})`);
       return res.status(403).json({
         success: false,
         message: 'Not authorized to update this task'
       });
     }
     
-    // Check if user has admin privileges
+    // Check if user has admin privileges for the organization
     if (req.user.role !== 'admin' && req.user.role !== 'adminx') {
       return res.status(403).json({
         success: false,

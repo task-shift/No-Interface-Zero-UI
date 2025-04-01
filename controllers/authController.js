@@ -129,6 +129,7 @@ exports.logout = async (req, res) => {
 
 exports.getCurrentUser = async (req, res) => {
   try {
+    // Get the user details
     const { success, user, error } = await UserModel.getUserById(req.user.user_id);
 
     if (!success) {
@@ -136,6 +137,22 @@ exports.getCurrentUser = async (req, res) => {
         success: false,
         message: error
       });
+    }
+    
+    // If user has no current_organization_id set but belongs to organizations, set the first one
+    if (!user.current_organization_id && user.organization_id && user.organization_id.length > 0) {
+      const { success: updateSuccess, error: updateError } = 
+        await UserModel.setCurrentOrganization(user.user_id, user.organization_id[0]);
+      
+      if (updateSuccess) {
+        // Refresh the user data to include the current_organization_id
+        const { success: refreshSuccess, user: refreshedUser } = 
+          await UserModel.getUserById(req.user.user_id);
+          
+        if (refreshSuccess) {
+          user.current_organization_id = refreshedUser.current_organization_id;
+        }
+      }
     }
 
     res.json({

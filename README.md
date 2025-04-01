@@ -1,10 +1,9 @@
 # No Interface Zero UI - API Documentation
 
-A comprehensive documentation of all API endpoints available in the authentication and organization management system.
 
 ## Base URL
 
-All API endpoints are available under the base URL of your deployed server: `https://your-api-domain.com` or `http://localhost:3000` for local development.
+All API endpoints are available under the base URL of your deployed server: `http://localhost:3000` for local development.
 
 ## Authorization
 

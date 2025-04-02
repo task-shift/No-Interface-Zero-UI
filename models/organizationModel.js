@@ -177,7 +177,7 @@ class OrganizationModel {
    * @param {string} params.fullname - Full name of the person to invite
    * @param {string} params.role - Role to assign (default: 'user')
    * @param {string} params.permission - Permission level (default: 'standard')
-   * @param {string} params.inviter_id - User ID of the person sending the invitation
+   * @param {string} params.inviter_id - User ID of the person sending the invitation (not stored)
    * @returns {Object} - Object containing success status and invitation data
    */
   static async inviteTeamMember({ 
@@ -217,10 +217,7 @@ class OrganizationModel {
         throw new Error('This user has already been invited to the organization');
       }
       
-      // Generate a unique invite code
-      const invite_code = uuidv4();
-      
-      // Create the invitation record
+      // Create the invitation record - without invite_code and invited_by fields
       const { data, error } = await supabase
         .from('organization_members')
         .insert([
@@ -230,9 +227,7 @@ class OrganizationModel {
             fullname,
             role,
             permission,
-            status: 'invited',
-            invite_code,
-            invited_by: inviter_id
+            status: 'invited'
           }
         ])
         .select('*')

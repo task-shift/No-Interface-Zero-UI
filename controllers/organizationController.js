@@ -321,7 +321,8 @@ exports.setCurrentOrganization = async (req, res) => {
 // Invite a team member to an organization
 exports.inviteTeamMember = async (req, res) => {
   try {
-    const { organization_id } = req.params;
+    // Use the user's current organization ID instead of getting it from parameters
+    const organization_id = req.user.current_organization_id;
     const { email, fullname, role, permission } = req.body;
 
     // Validate required fields
@@ -345,6 +346,14 @@ exports.inviteTeamMember = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Please provide a valid email address'
+      });
+    }
+
+    // Check if user has a current organization set
+    if (!organization_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'No current organization set. Please set a current organization before inviting team members.'
       });
     }
 
@@ -410,7 +419,6 @@ exports.inviteTeamMember = async (req, res) => {
       email,
       fullname,
       organization_name,
-      invite_code: invitation.invite_code,
       inviter_name: inviterName
     });
 

@@ -166,7 +166,7 @@ exports.sendOrganizationInviteEmail = async (invitationData) => {
       inviter_name
     } = invitationData;
 
-    if (!email || !organization_name || !invite_code) {
+    if (!email || !organization_name) {
       throw new Error('Missing required invitation data');
     }
 
@@ -175,7 +175,7 @@ exports.sendOrganizationInviteEmail = async (invitationData) => {
       inviteeName: fullname,
       inviterName: inviter_name || 'The team',
       organizationName: organization_name,
-      inviteCode: invite_code
+      inviteCode: invite_code || 'Not available' // Make invite_code optional
     });
     
     // Send email using Resend

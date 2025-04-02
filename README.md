@@ -613,10 +613,10 @@ Authorization: Bearer jwt_token_here
 
 ### Invite Team Member
 
-Invites a new user to join an organization by email.
+Invites a new user to join the user's current active organization by email.
 
 ```http
-POST /api/organizations/:organization_id/invite
+POST /api/organizations/invite
 Content-Type: application/json
 Authorization: Bearer jwt_token_here
 
@@ -646,6 +646,15 @@ Authorization: Bearer jwt_token_here
         "date_created": "2023-08-15",
         "time_created": "14:30:00"
     }
+}
+```
+
+#### Response (Error - No Current Organization)
+
+```json
+{
+    "success": false,
+    "message": "No current organization set. Please set a current organization before inviting team members."
 }
 ```
 

@@ -1,6 +1,7 @@
 const OrganizationModel = require('../models/organizationModel');
 const UserModel = require('../models/userModel');
 const supabase = require('../config/supabase');
+const emailController = require('../controllers/emailController');
 
 // Create a new organization
 exports.createOrganization = async (req, res) => {
@@ -313,6 +314,121 @@ exports.setCurrentOrganization = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error setting current organization'
+    });
+  }
+};
+
+// Invite a team member to an organization
+exports.inviteTeamMember = async (req, res) => {
+  try {
+    const { organization_id } = req.params;
+    const { email, fullname, role, permission } = req.body;
+
+    // Validate required fields
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email address is required'
+      });
+    }
+
+    if (!fullname) {
+      return res.status(400).json({
+        success: false,
+        message: 'Full name is required'
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid email address'
+      });
+    }
+
+    // Check if user has access to this organization
+    if (req.user.role !== 'admin' && 
+       (!req.user.organization_id || !req.user.organization_id.includes(organization_id))) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have access to this organization'
+      });
+    }
+    
+    // Get the current user's details for the invitation
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('fullname')
+      .eq('user_id', req.user.user_id)
+      .single();
+      
+    if (userError) {
+      console.error('Error fetching inviter details:', userError);
+    }
+    
+    const inviterName = userData?.fullname || req.user.username || 'A team member';
+
+    // Send the invitation
+    const { success, invitation, organization_name, error } = await OrganizationModel.inviteTeamMember({
+      organization_id,
+      email,
+      fullname,
+      role: role || 'user',
+      permission: permission || 'standard',
+      inviter_id: req.user.user_id
+    });
+
+    if (!success) {
+      // Check if the error is about already being a member
+      if (error.includes('already a member')) {
+        return res.status(409).json({
+          success: false,
+          message: 'This user is already a member of the organization',
+          error: 'ALREADY_MEMBER'
+        });
+      }
+      
+      // Check if the error is about already being invited
+      if (error.includes('already been invited')) {
+        return res.status(409).json({
+          success: false,
+          message: 'This user has already been invited to the organization',
+          error: 'ALREADY_INVITED'
+        });
+      }
+      
+      return res.status(400).json({
+        success: false,
+        message: error
+      });
+    }
+
+    // Send invitation email
+    const emailResult = await emailController.sendOrganizationInviteEmail({
+      email,
+      fullname,
+      organization_name,
+      invite_code: invitation.invite_code,
+      inviter_name: inviterName
+    });
+
+    if (!emailResult.success) {
+      console.error('Failed to send invitation email:', emailResult.error);
+      // Continue anyway as the invitation was created successfully
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Invitation sent successfully',
+      invitation
+    });
+  } catch (error) {
+    console.error('Invite team member error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error sending invitation'
     });
   }
 }; 

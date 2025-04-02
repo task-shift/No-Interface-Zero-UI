@@ -1,6 +1,10 @@
 const { Resend } = require('resend');
 // Import email templates
-const { getVerificationEmailTemplate, getTestEmailTemplate } = require('../templates/emails');
+const { 
+  getVerificationEmailTemplate, 
+  getTestEmailTemplate,
+  getOrganizationInviteTemplate
+} = require('../templates/emails');
 // Import verification model
 const VerificationModel = require('../models/verificationModel');
 const supabase = require('../config/supabase');
@@ -148,5 +152,48 @@ exports.sendVerificationEmail = async (req, res) => {
       message: 'Server error while sending verification email',
       error: error.message
     });
+  }
+};
+
+// Send an organization invitation email
+exports.sendOrganizationInviteEmail = async (invitationData) => {
+  try {
+    const { 
+      email, 
+      fullname, 
+      organization_name, 
+      invite_code,
+      inviter_name
+    } = invitationData;
+
+    if (!email || !organization_name || !invite_code) {
+      throw new Error('Missing required invitation data');
+    }
+
+    // Generate the HTML email using the template
+    const emailHtml = getOrganizationInviteTemplate({
+      inviteeName: fullname,
+      inviterName: inviter_name || 'The team',
+      organizationName: organization_name,
+      inviteCode: invite_code
+    });
+    
+    // Send email using Resend
+    const { data, error } = await resend.emails.send({
+      from: 'TaskShift <invites@taskshift.xyz>',
+      to: email,
+      subject: `Invitation to join ${organization_name}`,
+      html: emailHtml,
+    });
+
+    if (error) {
+      console.error('Invitation email sending error:', error);
+      return { success: false, error };
+    }
+
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error sending organization invitation:', error);
+    return { success: false, error: error.message };
   }
 }; 

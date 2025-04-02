@@ -16,6 +16,9 @@ router.get('/my-organizations', organizationController.getUserOrganizations);
 // Get user's primary organization details (backward compatibility)
 router.get('/me', organizationController.getOrganization);
 
+// Invite team member to an organization
+router.post('/:organization_id/invite', organizationController.inviteTeamMember);
+
 // Get a specific organization by ID
 router.get('/:organization_id', organizationController.getOrganization);
 

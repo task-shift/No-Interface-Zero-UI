@@ -611,6 +611,64 @@ Authorization: Bearer jwt_token_here
 }
 ```
 
+### Invite Team Member
+
+Invites a new user to join an organization by email.
+
+```http
+POST /api/organizations/:organization_id/invite
+Content-Type: application/json
+Authorization: Bearer jwt_token_here
+
+{
+    "email": "newmember@example.com",
+    "fullname": "Jane Smith",
+    "role": "user",              // Optional - defaults to "user"
+    "permission": "standard"     // Optional - defaults to "standard"
+}
+```
+
+#### Response (Success)
+
+```json
+{
+    "success": true,
+    "message": "Invitation sent successfully",
+    "invitation": {
+        "id": 1,
+        "organization_id": "org_uuid_here",
+        "email": "newmember@example.com",
+        "fullname": "Jane Smith",
+        "role": "user",
+        "permission": "standard",
+        "status": "invited",
+        "invite_code": "invitation_code_here",
+        "date_created": "2023-08-15",
+        "time_created": "14:30:00"
+    }
+}
+```
+
+#### Response (Error - Already Invited)
+
+```json
+{
+    "success": false,
+    "message": "This user has already been invited to the organization",
+    "error": "ALREADY_INVITED"
+}
+```
+
+#### Response (Error - Already a Member)
+
+```json
+{
+    "success": false,
+    "message": "This user is already a member of the organization",
+    "error": "ALREADY_MEMBER"
+}
+```
+
 ### List All Organizations (Admin Only)
 
 Returns a list of all organizations (restricted to admin users).

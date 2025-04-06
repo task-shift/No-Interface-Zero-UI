@@ -162,7 +162,6 @@ exports.sendOrganizationInviteEmail = async (invitationData) => {
       email, 
       fullname, 
       organization_name, 
-      invite_code,
       inviter_name
     } = invitationData;
 
@@ -174,8 +173,7 @@ exports.sendOrganizationInviteEmail = async (invitationData) => {
     const emailHtml = getOrganizationInviteTemplate({
       inviteeName: fullname,
       inviterName: inviter_name || 'The team',
-      organizationName: organization_name,
-      inviteCode: invite_code || 'Not available' // Make invite_code optional
+      organizationName: organization_name
     });
     
     // Send email using Resend

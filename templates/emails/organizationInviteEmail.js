@@ -4,22 +4,20 @@
  * @param {string} data.inviteeName - Name of the person being invited
  * @param {string} data.inviterName - Name of the person sending the invitation
  * @param {string} data.organizationName - Name of the organization
- * @param {string} data.inviteCode - Unique invitation code (optional)
- * @param {string} data.inviteUrl - Complete URL for accepting the invitation (optional)
  * @returns {string} HTML content for the email
  */
 const getOrganizationInviteTemplate = ({ 
   inviteeName, 
   inviterName, 
-  organizationName 
-//   inviteCode, 
-//   inviteUrl 
+  organizationName, 
+  inviteCode, 
+  inviteUrl 
 }) => {
   // Determine if we should show the invite code section
-//   const showInviteCode = inviteCode && inviteCode !== 'Not available';
+  const showInviteCode = inviteCode && inviteCode !== 'Not available';
   
   // If no specific URL is provided, construct a generic one if we have an invite code
-//   const acceptUrl = inviteUrl || (showInviteCode ? `${process.env.FRONTEND_URL || 'http://localhost:3000'}/join?code=${inviteCode}` : '#');
+  const acceptUrl = inviteUrl || (showInviteCode ? `${process.env.FRONTEND_URL || 'http://localhost:3000'}/join?code=${inviteCode}` : '#');
   
   return `<!DOCTYPE html>
 

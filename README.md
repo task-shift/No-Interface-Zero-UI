@@ -642,7 +642,6 @@ Authorization: Bearer jwt_token_here
         "role": "user",
         "permission": "standard",
         "status": "invited",
-        "invite_code": "invitation_code_here",
         "date_created": "2023-08-15",
         "time_created": "14:30:00"
     }
@@ -675,6 +674,159 @@ Authorization: Bearer jwt_token_here
     "success": false,
     "message": "This user is already a member of the organization",
     "error": "ALREADY_MEMBER"
+}
+```
+
+### Activate Organization Invitation
+
+Activates a pending invitation for the authenticated user, changing their status from "invited" to "active" in the organization_members table, adds the organization to the user's organization list, and sets it as their current active organization.
+
+```http
+POST /api/organizations/activate-invitation
+Content-Type: application/json
+Authorization: Bearer jwt_token_here
+
+{
+    "email": "john.doe@example.com",
+    "organization_id": "org_uuid_here"
+}
+```
+
+#### Response (Success)
+
+```json
+{
+    "success": true,
+    "message": "Invitation activated successfully",
+    "activation": {
+        "id": 1,
+        "organization_id": "org_uuid_here",
+        "email": "john.doe@example.com",
+        "fullname": "John Doe",
+        "role": "user",
+        "permission": "standard",
+        "status": "active",
+        "user_id": "user_uuid_here",
+        "date_created": "2023-08-15",
+        "time_created": "14:30:00"
+    },
+    "organization": {
+        "organization_id": "org_uuid_here",
+        "organization_name": "Acme Corp",
+        "created_at": "2023-08-15T14:30:00Z"
+    },
+    "user": {
+        "id": 1,
+        "fullname": "John Doe",
+        "username": "johndoe",
+        "email": "john.doe@example.com",
+        "organization_id": ["org_uuid_here"],
+        "current_organization_id": "org_uuid_here",
+        "status": "verified"
+    }
+}
+```
+
+#### Response (Error - No Invitation Found)
+
+```json
+{
+    "success": false,
+    "message": "No pending invitation found for this email and organization"
+}
+```
+
+#### Response (Error - Email Mismatch)
+
+```json
+{
+    "success": false,
+    "message": "You can only activate invitations sent to your own email address"
+}
+```
+
+### Activate Organization Invitation with Registration
+
+Activates a pending invitation and simultaneously registers a new user account. This endpoint is designed for new users who have been invited to join an organization but don't have an account yet. The user will be automatically verified and added to the organization.
+
+```http
+POST /api/organizations/activate-invitation-with-registration
+Content-Type: application/json
+
+{
+    "email": "john.doe@example.com",
+    "organization_id": "org_uuid_here",
+    "username": "johndoe",
+    "fullname": "John Doe",
+    "password": "securepassword123"
+}
+```
+
+#### Response (Success)
+
+```json
+{
+    "success": true,
+    "message": "Registration successful and invitation activated",
+    "token": "jwt_token_here",
+    "user": {
+        "id": 1,
+        "fullname": "John Doe",
+        "username": "johndoe",
+        "email": "john.doe@example.com",
+        "avatar": null,
+        "user_id": "user_uuid_here",
+        "role": "user",
+        "organization_id": ["org_uuid_here"],
+        "current_organization_id": "org_uuid_here",
+        "status": "verified"
+    },
+    "organization": {
+        "organization_id": "org_uuid_here",
+        "organization_name": "Acme Corp",
+        "created_at": "2023-08-15T14:30:00Z"
+    },
+    "activation": {
+        "id": 1,
+        "organization_id": "org_uuid_here",
+        "email": "john.doe@example.com",
+        "fullname": "John Doe",
+        "role": "user",
+        "permission": "standard",
+        "status": "active",
+        "user_id": "user_uuid_here",
+        "date_created": "2023-08-15",
+        "time_created": "14:30:00"
+    }
+}
+```
+
+#### Response (Error - No Invitation Found)
+
+```json
+{
+    "success": false,
+    "message": "No pending invitation found for this email and organization"
+}
+```
+
+#### Response (Error - Username Already Exists)
+
+```json
+{
+    "success": false,
+    "message": "Username already exists",
+    "error": "USERNAME_EXISTS"
+}
+```
+
+#### Response (Error - Email Already Exists)
+
+```json
+{
+    "success": false,
+    "message": "Email already exists",
+    "error": "EMAIL_EXISTS"
 }
 ```
 

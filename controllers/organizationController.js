@@ -2,6 +2,7 @@ const OrganizationModel = require('../models/organizationModel');
 const UserModel = require('../models/userModel');
 const supabase = require('../config/supabase');
 const emailController = require('../controllers/emailController');
+const { generateToken } = require('../middleware/auth');
 
 // Create a new organization
 exports.createOrganization = async (req, res) => {
@@ -48,6 +49,45 @@ exports.createOrganization = async (req, res) => {
         message: 'Organization created but failed to update user profile',
         error: userUpdateError
       });
+    }
+
+    // Add the creator as an organization member with admin permissions
+    try {
+      const { data: userData } = await supabase
+        .from('users')
+        .select('email, fullname')
+        .eq('user_id', req.user.user_id)
+        .single();
+
+      if (userData) {
+        // Add the user to organization_members with admin permission
+        const { error: memberError } = await supabase
+          .from('organization_members')
+          .insert([{
+            organization_id: organization.organization_id,
+            email: userData.email,
+            fullname: userData.fullname || req.user.username,
+            role: 'admin',
+            permission: 'admin',
+            status: 'active'
+          }]);
+
+        if (memberError) {
+          console.error('Failed to add user as organization member:', memberError);
+          // Continue anyway as organization was created and user was linked
+        }
+      }
+    } catch (memberError) {
+      console.error('Error adding creator as organization member:', memberError);
+      // Continue anyway as the organization was created and the user was linked
+    }
+
+    // Set this as the user's current organization
+    try {
+      await UserModel.setCurrentOrganization(req.user.user_id, organization.organization_id);
+    } catch (currentOrgError) {
+      console.error('Error setting current organization:', currentOrgError);
+      // Continue anyway as the organization was created
     }
 
     res.status(201).json({
@@ -437,6 +477,241 @@ exports.inviteTeamMember = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error sending invitation'
+    });
+  }
+};
+
+// Activate a user's invitation to an organization
+exports.activateInvitation = async (req, res) => {
+  try {
+    const { email, organization_id } = req.body;
+    const user_id = req.user.user_id;
+
+    // Validate required fields
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email address is required'
+      });
+    }
+
+    if (!organization_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Organization ID is required'
+      });
+    }
+
+    // Check if the email matches the authenticated user's email
+    if (email.toLowerCase() !== req.user.email.toLowerCase()) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only activate invitations sent to your own email address'
+      });
+    }
+
+    // Activate the invitation
+    const { success, activation, organization, error } = await OrganizationModel.activateInvitation({
+      email,
+      organization_id,
+      user_id
+    });
+
+    if (!success) {
+      return res.status(404).json({
+        success: false,
+        message: error || 'Failed to activate invitation'
+      });
+    }
+
+    // Add the organization to the user's organization list
+    const { success: userUpdateSuccess, error: userUpdateError } = 
+      await UserModel.addUserToOrganization(user_id, organization_id);
+    
+    if (!userUpdateSuccess) {
+      console.error('Failed to update user\'s organization list:', userUpdateError);
+      // Continue anyway as the activation was successful
+    }
+
+    // Set this as the user's current organization
+    const { success: currentOrgSuccess, error: currentOrgError } = 
+      await UserModel.setCurrentOrganization(user_id, organization_id);
+    
+    if (!currentOrgSuccess) {
+      console.error('Failed to set as current organization:', currentOrgError);
+      // Continue anyway as the activation was successful
+    }
+
+    // Get the updated user information
+    const { success: userSuccess, user, error: userError } = await UserModel.getUserById(user_id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Invitation activated successfully',
+      activation,
+      organization,
+      user: userSuccess ? user : null
+    });
+  } catch (error) {
+    console.error('Activate invitation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error activating invitation'
+    });
+  }
+};
+
+// Activate invitation with user registration
+exports.activateInvitationWithRegistration = async (req, res) => {
+  try {
+    const { email, organization_id, username, fullname, password } = req.body;
+
+    // Validate required fields
+    if (!email || !organization_id || !username || !fullname || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'All fields are required: email, organization_id, username, fullname, and password'
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid email address'
+      });
+    }
+
+    // First check if the invitation exists
+    const { data: invitation, error: invitationError } = await supabase
+      .from('organization_members')
+      .select('*')
+      .eq('email', email)
+      .eq('organization_id', organization_id)
+      .eq('status', 'invited')
+      .single();
+
+    if (invitationError) {
+      if (invitationError.code === 'PGRST116') { // Not found
+        return res.status(404).json({
+          success: false,
+          message: 'No pending invitation found for this email and organization'
+        });
+      }
+      throw invitationError;
+    }
+
+    if (!invitation) {
+      return res.status(404).json({
+        success: false,
+        message: 'No pending invitation found for this email and organization'
+      });
+    }
+
+    // Check if user already exists
+    const { data: existingUser, error: userCheckError } = await supabase
+      .from('users')
+      .select('user_id, email, username')
+      .or(`email.eq.${email},username.eq.${username}`)
+      .limit(1);
+
+    if (userCheckError) {
+      throw userCheckError;
+    }
+
+    if (existingUser && existingUser.length > 0) {
+      // Check if it's a username conflict
+      if (existingUser[0].username === username) {
+        return res.status(409).json({
+          success: false,
+          message: 'Username already exists',
+          error: 'USERNAME_EXISTS'
+        });
+      }
+      
+      // Check if it's an email conflict
+      if (existingUser[0].email.toLowerCase() === email.toLowerCase()) {
+        return res.status(409).json({
+          success: false,
+          message: 'Email already exists',
+          error: 'EMAIL_EXISTS'
+        });
+      }
+    }
+
+    // Register the new user
+    const { success: registrationSuccess, user, error: registrationError } = await UserModel.createUser({
+      username,
+      email,
+      fullname,
+      password,
+      status: 'verified' // Auto-verify the user since they came through an invitation
+    });
+
+    if (!registrationSuccess) {
+      return res.status(400).json({
+        success: false,
+        message: registrationError || 'Failed to register user'
+      });
+    }
+
+    // Update the invitation status to 'active' and link to the new user
+    const { data: updatedInvitation, error: updateError } = await supabase
+      .from('organization_members')
+      .update({ 
+        status: 'active',
+        user_id: user.user_id
+      })
+      .eq('email', email)
+      .eq('organization_id', organization_id)
+      .eq('status', 'invited')
+      .select('*')
+      .single();
+
+    if (updateError) {
+      console.error('Error updating invitation:', updateError);
+      // Continue anyway as the user was created successfully
+    }
+
+    // Add the organization to the user's organization list
+    const { success: userUpdateSuccess, error: userUpdateError } = 
+      await UserModel.addUserToOrganization(user.user_id, organization_id);
+    
+    if (!userUpdateSuccess) {
+      console.error('Failed to update user\'s organization list:', userUpdateError);
+      // Continue anyway as the user was created successfully
+    }
+
+    // Set this as the user's current organization
+    const { success: currentOrgSuccess, error: currentOrgError } = 
+      await UserModel.setCurrentOrganization(user.user_id, organization_id);
+    
+    if (!currentOrgSuccess) {
+      console.error('Failed to set as current organization:', currentOrgError);
+      // Continue anyway as the user was created successfully
+    }
+
+    // Get the organization details
+    const { organization } = await OrganizationModel.getOrganizationById(organization_id);
+
+    // Generate JWT token for the new user
+    const token = generateToken(user.user_id);
+
+    res.status(201).json({
+      success: true,
+      message: 'Registration successful and invitation activated',
+      token,
+      user,
+      organization,
+      activation: updatedInvitation || invitation
+    });
+  } catch (error) {
+    console.error('Activate invitation with registration error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error processing invitation and registration',
+      error: error.message
     });
   }
 }; 

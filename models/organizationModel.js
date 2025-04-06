@@ -244,6 +244,64 @@ class OrganizationModel {
       return { success: false, error: error.message };
     }
   }
+
+  /**
+   * Activate a user invitation by updating their status from 'invited' to 'active'
+   * @param {Object} params - Parameters
+   * @param {string} params.email - Email of the invited user
+   * @param {string} params.organization_id - ID of the organization the user was invited to
+   * @param {string} params.user_id - ID of the user to activate
+   * @returns {Object} - Object containing success status and activation data
+   */
+  static async activateInvitation({ email, organization_id, user_id }) {
+    try {
+      // Check if the invitation exists
+      const { data: invitation, error: invitationError } = await supabase
+        .from('organization_members')
+        .select('*')
+        .eq('email', email)
+        .eq('organization_id', organization_id)
+        .eq('status', 'invited')
+        .single();
+
+      if (invitationError) {
+        if (invitationError.code === 'PGRST116') { // Not found
+          throw new Error('No pending invitation found for this email and organization');
+        }
+        throw invitationError;
+      }
+
+      if (!invitation) {
+        throw new Error('No pending invitation found for this email and organization');
+      }
+
+      // Update the invitation status to 'active'
+      const { data: updatedInvitation, error: updateError } = await supabase
+        .from('organization_members')
+        .update({ 
+          status: 'active',
+          user_id: user_id // Link the user_id to the member record
+        })
+        .eq('email', email)
+        .eq('organization_id', organization_id)
+        .eq('status', 'invited')
+        .select('*')
+        .single();
+
+      if (updateError) throw updateError;
+
+      // Get the organization details
+      const { organization } = await this.getOrganizationById(organization_id);
+
+      return { 
+        success: true, 
+        activation: updatedInvitation,
+        organization
+      };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
 }
 
 module.exports = OrganizationModel; 

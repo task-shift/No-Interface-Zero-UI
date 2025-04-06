@@ -51,24 +51,26 @@ exports.createOrganization = async (req, res) => {
       });
     }
 
-    // Add the creator as an organization member with admin permissions
+    // Add the creator as an organization member with their role
     try {
       const { data: userData } = await supabase
         .from('users')
-        .select('email, fullname')
+        .select('email, fullname, role, username')
         .eq('user_id', req.user.user_id)
         .single();
 
       if (userData) {
-        // Add the user to organization_members with admin permission
+        // Add the user to organization_members with their current role and admin permission
         const { error: memberError } = await supabase
           .from('organization_members')
           .insert([{
             organization_id: organization.organization_id,
             email: userData.email,
             fullname: userData.fullname || req.user.username,
-            role: 'admin',
-            permission: 'admin',
+            username: userData.username || req.user.username,
+            user_id: req.user.user_id,
+            role: userData.role || req.user.role || 'user', // Use the user's role
+            permission: 'admin', // Always give admin permission in the organization they create
             status: 'active'
           }]);
 
@@ -502,13 +504,8 @@ exports.activateInvitation = async (req, res) => {
       });
     }
 
-    // Check if the email matches the authenticated user's email
-    if (email.toLowerCase() !== req.user.email.toLowerCase()) {
-      return res.status(403).json({
-        success: false,
-        message: 'You can only activate invitations sent to your own email address'
-      });
-    }
+    // We no longer check if the email matches the authenticated user's email
+    // This allows users to activate invitations for any organization they have access to
 
     // Activate the invitation
     const { success, activation, organization, error } = await OrganizationModel.activateInvitation({

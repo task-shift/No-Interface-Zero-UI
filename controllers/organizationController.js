@@ -514,7 +514,8 @@ exports.activateInvitation = async (req, res) => {
     const { success, activation, organization, error } = await OrganizationModel.activateInvitation({
       email,
       organization_id,
-      user_id
+      user_id,
+      username: req.user.username
     });
 
     if (!success) {
@@ -661,7 +662,8 @@ exports.activateInvitationWithRegistration = async (req, res) => {
       .from('organization_members')
       .update({ 
         status: 'active',
-        user_id: user.user_id
+        user_id: user.user_id,
+        username: username
       })
       .eq('email', email)
       .eq('organization_id', organization_id)

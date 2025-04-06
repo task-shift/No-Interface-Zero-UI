@@ -122,12 +122,22 @@ exports.getOrganization = async (req, res) => {
     }
 
     // Verify the user has access to this organization
-    if (req.user.role !== 'admin' && 
-       (!req.user.organization_id || !req.user.organization_id.includes(targetOrgId))) {
-      return res.status(403).json({
-        success: false,
-        message: 'You do not have access to this organization'
-      });
+    if (!req.user.organization_id || !req.user.organization_id.includes(targetOrgId)) {
+      // Check if user is an admin in any organization (admins can access all organizations)
+      const { data: memberData, error: memberError } = await supabase
+        .from('organization_members')
+        .select('permission')
+        .eq('user_id', req.user.user_id)
+        .eq('status', 'active')
+        .eq('permission', 'admin')
+        .limit(1);
+      
+      if (memberError || !memberData || memberData.length === 0) {
+        return res.status(403).json({
+          success: false,
+          message: 'You do not have access to this organization'
+        });
+      }
     }
 
     const { success, organization, error } = await OrganizationModel.getOrganizationById(targetOrgId);
@@ -180,8 +190,16 @@ exports.getUserOrganizations = async (req, res) => {
 // List all organizations (admin only)
 exports.listOrganizations = async (req, res) => {
   try {
-    // Only admins can list all organizations
-    if (req.user.role !== 'admin') {
+    // Check if user has admin permission in any organization
+    const { data: memberData, error: memberError } = await supabase
+      .from('organization_members')
+      .select('permission')
+      .eq('user_id', req.user.user_id)
+      .eq('status', 'active')
+      .eq('permission', 'admin')
+      .limit(1);
+    
+    if (memberError || !memberData || memberData.length === 0) {
       return res.status(403).json({
         success: false,
         message: 'Admin privileges required for this action'
@@ -400,8 +418,15 @@ exports.inviteTeamMember = async (req, res) => {
     }
 
     // Check if user has access to this organization
-    if (req.user.role !== 'admin' && 
-       (!req.user.organization_id || !req.user.organization_id.includes(organization_id))) {
+    const { data: memberData, error: memberError } = await supabase
+      .from('organization_members')
+      .select('role, permission')
+      .eq('organization_id', organization_id)
+      .eq('user_id', req.user.user_id)
+      .eq('status', 'active')
+      .single();
+    
+    if (memberError || !memberData) {
       return res.status(403).json({
         success: false,
         message: 'You do not have access to this organization'

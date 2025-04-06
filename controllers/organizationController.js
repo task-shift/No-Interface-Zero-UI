@@ -713,4 +713,74 @@ exports.activateInvitationWithRegistration = async (req, res) => {
       error: error.message
     });
   }
+};
+
+// Get all members of the user's current organization
+exports.getOrganizationMembers = async (req, res) => {
+  try {
+    // Get the user's current organization ID
+    const organizationId = req.user.current_organization_id;
+
+    // Check if user has a current organization set
+    if (!organizationId) {
+      return res.status(400).json({
+        success: false,
+        message: 'No current organization set. Please set a current organization first.'
+      });
+    }
+
+    // Check if user is a member of this organization
+    const { data: memberData, error: memberError } = await supabase
+      .from('organization_members')
+      .select('role, permission')
+      .eq('organization_id', organizationId)
+      .eq('user_id', req.user.user_id)
+      .eq('status', 'active')
+      .single();
+
+    if (memberError || !memberData) {
+      console.error('Error checking member status:', memberError || 'Not a member');
+      return res.status(403).json({
+        success: false,
+        message: 'You are not a member of this organization'
+      });
+    }
+
+    // Get all members of this organization
+    const { data: members, error } = await supabase
+      .from('organization_members')
+      .select('*')
+      .eq('organization_id', organizationId)
+      .order('fullname', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching organization members:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to fetch organization members',
+        error: error.message
+      });
+    }
+
+    // Fetch organization details
+    const { success: orgSuccess, organization, error: orgError } = 
+      await OrganizationModel.getOrganizationById(organizationId);
+
+    if (!orgSuccess) {
+      console.error('Error fetching organization details:', orgError);
+    }
+
+    res.status(200).json({
+      success: true,
+      members,
+      organization: orgSuccess ? organization : { organization_id: organizationId }
+    });
+  } catch (error) {
+    console.error('Get organization members error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error fetching organization members',
+      error: error.message
+    });
+  }
 }; 

@@ -867,6 +867,75 @@ Authorization: Bearer jwt_token_here
 }
 ```
 
+### Get Organization Members
+
+Retrieves all members of the user's current active organization.
+
+```http
+GET /api/organizations/members
+Content-Type: application/json
+Authorization: Bearer jwt_token_here
+```
+
+#### Response (Success)
+
+```json
+{
+    "success": true,
+    "members": [
+        {
+            "id": 1,
+            "organization_id": "org_uuid_here",
+            "email": "admin@example.com",
+            "fullname": "Admin User",
+            "username": "admin",
+            "user_id": "user_uuid_here",
+            "role": "admin",
+            "permission": "admin",
+            "status": "active",
+            "date_created": "2023-08-15",
+            "time_created": "14:30:00"
+        },
+        {
+            "id": 2,
+            "organization_id": "org_uuid_here",
+            "email": "user@example.com",
+            "fullname": "Regular User",
+            "username": "regularuser",
+            "user_id": "user_uuid_here",
+            "role": "user",
+            "permission": "standard",
+            "status": "active",
+            "date_created": "2023-08-16",
+            "time_created": "10:15:00"
+        }
+    ],
+    "organization": {
+        "organization_id": "org_uuid_here",
+        "organization_name": "Acme Corp",
+        "created_at": "2023-08-15T14:30:00Z"
+    }
+}
+```
+
+#### Response (Error - No Current Organization)
+
+```json
+{
+    "success": false,
+    "message": "No current organization set. Please set a current organization first."
+}
+```
+
+#### Response (Error - Not a Member)
+
+```json
+{
+    "success": false,
+    "message": "You are not a member of this organization"
+}
+```
+
 ## Task Endpoints
 
 All task endpoints require a verified user (email verified).

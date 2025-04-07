@@ -392,6 +392,10 @@ exports.updateTask = async (req, res) => {
 // Get tasks assigned to the current user
 exports.getUserAssignedTasks = async (req, res) => {
   try {
+    console.log('=== Get Assigned Tasks Request ===');
+    console.log('User:', req.user.user_id, req.user.username || 'Unknown username');
+    console.log('Looking for tasks where this user is in the assignees array');
+    
     // Get organization ID from current_organization_id, with fallback to the first organization_id
     let orgId = req.user.current_organization_id;
     
@@ -404,10 +408,12 @@ exports.getUserAssignedTasks = async (req, res) => {
     // Clean up organization_id if it contains commas (legacy support)
     if (typeof orgId === 'string' && orgId.includes(',')) {
       orgId = orgId.split(',')[0];
+      console.log(`Found comma in organization_id, using first value: ${orgId}`);
     }
 
     // Return error if no organization is available
     if (!orgId) {
+      console.log('No organization context found for user');
       return res.status(400).json({
         success: false,
         message: 'No organization context found. Please set a current organization or join an organization.'
@@ -417,35 +423,55 @@ exports.getUserAssignedTasks = async (req, res) => {
     // Check user's membership in the organization
     const { data: memberData, error: memberError } = await supabase
       .from('organization_members')
-      .select('role, permission')
+      .select('role, permission, status')
       .eq('organization_id', orgId)
       .eq('user_id', req.user.user_id)
-      .eq('status', 'active')
       .single();
 
-    if (memberError || !memberData) {
-      console.error('Error checking member status:', memberError || 'Not a member');
+    if (memberError) {
+      console.error('Error checking member status:', memberError);
+      return res.status(403).json({
+        success: false,
+        message: 'Error verifying organization membership'
+      });
+    }
+    
+    if (!memberData) {
+      console.log('User is not a member of the organization');
       return res.status(403).json({
         success: false,
         message: 'You are not a member of this organization'
       });
     }
+    
+    if (memberData.status !== 'active') {
+      console.log(`User's membership status is ${memberData.status}, not active`);
+      return res.status(403).json({
+        success: false,
+        message: `Your membership status (${memberData.status}) does not allow access to tasks`
+      });
+    }
 
     console.log(`Fetching tasks assigned to user: ${req.user.user_id} in organization: ${orgId}`);
+    console.log(`User role: ${memberData.role}, permission: ${memberData.permission}`);
 
     // Get tasks assigned to the current user
     const { success, tasks, error } = await TaskModel.getTasksAssignedToUser(req.user.user_id, orgId);
 
     if (!success) {
+      console.error('Model returned error:', error);
       return res.status(400).json({
         success: false,
         message: error
       });
     }
 
+    console.log(`Returning ${tasks.length} assigned tasks to user`);
+    
+    // If no tasks are found, still return success but with empty array
     res.json({
       success: true,
-      tasks
+      tasks: tasks || []
     });
   } catch (error) {
     console.error('Get assigned tasks error:', error);

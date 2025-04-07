@@ -320,42 +320,79 @@ exports.updateTask = async (req, res) => {
       });
     }
 
-    // Check if user has admin permission in this organization
-    if (!memberData || memberData.permission !== 'admin') {
+    // Check if user has admin permission or is an assignee of this task
+    const isAdmin = memberData && memberData.permission === 'admin';
+    const isAssignee = existingTask.assignees && 
+                       Array.isArray(existingTask.assignees) &&
+                       existingTask.assignees.some(assignee => 
+                         assignee.user_id === req.user.user_id);
+    
+    console.log(`User update permissions - isAdmin: ${isAdmin}, isAssignee: ${isAssignee}`);
+    
+    if (!isAdmin && !isAssignee) {
       return res.status(403).json({
         success: false,
-        message: 'Admin permission required to update tasks in this organization'
+        message: 'You must be an admin or assigned to this task to update it'
       });
     }
     
-    // Prepare update data
+    // Prepare update data with permissions in mind
     const updateData = {};
-    if (title) updateData.title = title;
-    if (description) updateData.description = description;
-    if (status) updateData.status = status;
-    if (due_date) updateData.due_date = due_date;
     
-    // Handle assignees update with proper validation
-    if (assignees) {
-      // Validate assignees is an array
-      if (!Array.isArray(assignees) || assignees.length === 0) {
-        return res.status(400).json({
-          success: false,
-          message: 'Assignees must be a non-empty array'
-        });
-      }
+    // Admin can update all fields
+    if (isAdmin) {
+      if (title) updateData.title = title;
+      if (description) updateData.description = description;
+      if (status) updateData.status = status;
+      if (due_date) updateData.due_date = due_date;
       
-      // Validate each assignee has the required fields
-      for (const assignee of assignees) {
-        if (!assignee.user_id || !assignee.username || !assignee.fullname) {
+      // Handle assignees update with proper validation
+      if (assignees) {
+        // Validate assignees is an array
+        if (!Array.isArray(assignees) || assignees.length === 0) {
           return res.status(400).json({
             success: false,
-            message: 'Each assignee must include user_id, username, and fullname'
+            message: 'Assignees must be a non-empty array'
           });
         }
+        
+        // Validate each assignee has the required fields
+        for (const assignee of assignees) {
+          if (!assignee.user_id || !assignee.username || !assignee.fullname) {
+            return res.status(400).json({
+              success: false,
+              message: 'Each assignee must include user_id, username, and fullname'
+            });
+          }
+        }
+        
+        updateData.assignees = assignees;
+      }
+    } 
+    // Assignee (non-admin) can only update status and add notes to description
+    else if (isAssignee) {
+      // Assignees can update the status
+      if (status) updateData.status = status;
+      
+      // If they're updating the description, append their update rather than replace
+      if (description) {
+        const timestamp = new Date().toISOString();
+        const userUpdate = `\n\n[Update by ${req.user.username || 'assignee'} on ${timestamp}]\n${description}`;
+        updateData.description = existingTask.description + userUpdate;
       }
       
-      updateData.assignees = assignees;
+      // Assignees can't modify other fields
+      if (title || assignees || due_date) {
+        console.log('Assignee attempted to update restricted fields - these will be ignored');
+      }
+    }
+    
+    // If there's nothing to update after permission filtering, return
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No permitted fields to update were provided'
+      });
     }
     
     // Update the task
@@ -377,7 +414,8 @@ exports.updateTask = async (req, res) => {
     res.json({
       success: true,
       task: data,
-      message: 'Task updated successfully'
+      message: 'Task updated successfully',
+      updated_as: isAdmin ? 'admin' : 'assignee'
     });
   } catch (error) {
     console.error('Update task error:', error);

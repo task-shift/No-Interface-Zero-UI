@@ -19,7 +19,7 @@ router.get('/assigned', taskController.getUserAssignedTasks);
 // Get specific task by ID
 router.get('/:task_id', taskController.getTaskById);
 
-// Update task - admin or adminx only
-router.put('/:task_id', requireAdminOrAdminX, taskController.updateTask);
+// Update task - both admins and task assignees can update, with different permissions
+router.put('/:task_id', taskController.updateTask);
 
 module.exports = router; 

@@ -1163,9 +1163,12 @@ Authorization: Bearer jwt_token_here
 }
 ```
 
-### Update Task (Admin/AdminX Only)
+### Update Task (Admins and Assignees)
 
-Updates an existing task.
+Updates an existing task in the user's current organization. Permissions are based on the user's role:
+
+- **Admin users** can update all task fields
+- **Task assignees** can only update the status and append notes to the description
 
 ```http
 PUT /api/tasks/:task_id
@@ -1174,25 +1177,20 @@ Authorization: Bearer jwt_token_here
 
 {
     "title": "Updated Task Title",
-    "description": "Updated task description",
-    "status": "in_progress",
-    "due_date": "2023-12-25",
+    "description": "Updated task description with more details",
     "assignees": [
         {
             "user_id": "user1_uuid_here",
             "username": "janesmith",
             "fullname": "Jane Smith"
-        },
-        {
-            "user_id": "user3_uuid_here",
-            "username": "maryjohnson",
-            "fullname": "Mary Johnson"
         }
-    ]
+    ],
+    "status": "in_progress",
+    "due_date": "2023-12-31"
 }
 ```
 
-#### Response
+#### Response (Admin Update)
 
 ```json
 {
@@ -1200,8 +1198,8 @@ Authorization: Bearer jwt_token_here
     "task": {
         "id": 1,
         "title": "Updated Task Title",
-        "description": "Updated task description",
-        "task_id": "task_uuid_1",
+        "description": "Updated task description with more details",
+        "task_id": "task_uuid_here",
         "user_id": "creator_user_id",
         "organization_id": "org_uuid_here",
         "assignees": [
@@ -1209,21 +1207,50 @@ Authorization: Bearer jwt_token_here
                 "user_id": "user1_uuid_here",
                 "username": "janesmith",
                 "fullname": "Jane Smith"
-            },
-            {
-                "user_id": "user3_uuid_here",
-                "username": "maryjohnson",
-                "fullname": "Mary Johnson"
             }
         ],
         "status": "in_progress",
-        "due_date": "2023-12-25",
+        "due_date": "2023-12-31",
         "date_created": "2023-08-15",
         "time_created": "14:30:00"
     },
-    "message": "Task updated successfully"
+    "message": "Task updated successfully",
+    "updated_as": "admin"
 }
 ```
+
+#### Response (Assignee Update)
+
+When an assignee updates a task, they can only update the status and append notes to the description:
+
+```json
+{
+    "success": true,
+    "task": {
+        "id": 1,
+        "title": "Original Task Title",
+        "description": "Original task description.\n\n[Update by johndo on 2023-08-16T10:45:20.123Z]\nI've started working on this task and have some initial progress to report.",
+        "task_id": "task_uuid_here",
+        "user_id": "creator_user_id",
+        "organization_id": "org_uuid_here",
+        "assignees": [
+            {
+                "user_id": "7ce2828e-19f6-42ed-8570-152085d5e00e",
+                "username": "johndo",
+                "fullname": "John Doe"
+            }
+        ],
+        "status": "in_progress",
+        "due_date": "2023-12-31",
+        "date_created": "2023-08-15",
+        "time_created": "14:30:00"
+    },
+    "message": "Task updated successfully",
+    "updated_as": "assignee"
+}
+```
+
+Note: If an assignee attempts to update restricted fields (title, assignees, due_date), these fields will be ignored.
 
 ## Test Endpoints
 

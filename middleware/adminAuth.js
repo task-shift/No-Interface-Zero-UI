@@ -1,3 +1,5 @@
+const supabase = require('../config/supabase');
+
 // Middleware to check if user is an admin
 exports.requireAdmin = async (req, res, next) => {
   try {
@@ -9,8 +11,36 @@ exports.requireAdmin = async (req, res, next) => {
       });
     }
     
-    // Check if user is an admin
-    if (req.user.role !== 'admin') {
+    // Get organization ID from current_organization_id
+    let orgId = req.user.current_organization_id;
+    
+    // If current_organization_id is not set, return error
+    if (!orgId) {
+      return res.status(400).json({
+        success: false,
+        message: 'No current organization set. Please set a current organization first.'
+      });
+    }
+
+    // Check user's permission in the organization_members table
+    const { data: memberData, error: memberError } = await supabase
+      .from('organization_members')
+      .select('role, permission')
+      .eq('organization_id', orgId)
+      .eq('user_id', req.user.user_id)
+      .eq('status', 'active')
+      .single();
+
+    if (memberError || !memberData) {
+      console.error('Error checking organization permission:', memberError || 'Not a member');
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Admin privileges required for this action' 
+      });
+    }
+    
+    // Check if user has admin permission in the organization
+    if (memberData.permission !== 'admin') {
       return res.status(403).json({ 
         success: false, 
         message: 'Admin privileges required for this action' 
@@ -38,8 +68,37 @@ exports.requireAdminOrAdminX = async (req, res, next) => {
       });
     }
     
-    // Check if user is an admin or adminx
-    if (req.user.role !== 'admin' && req.user.role !== 'adminx') {
+    // Get organization ID from current_organization_id
+    let orgId = req.user.current_organization_id;
+    
+    // If current_organization_id is not set, return error
+    if (!orgId) {
+      return res.status(400).json({
+        success: false,
+        message: 'No current organization set. Please set a current organization first.'
+      });
+    }
+
+    // Check user's permission in the organization_members table
+    const { data: memberData, error: memberError } = await supabase
+      .from('organization_members')
+      .select('role, permission')
+      .eq('organization_id', orgId)
+      .eq('user_id', req.user.user_id)
+      .eq('status', 'active')
+      .single();
+
+    if (memberError || !memberData) {
+      console.error('Error checking organization permission:', memberError || 'Not a member');
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Admin privileges required for this action' 
+      });
+    }
+    
+    // Check if user has admin permission in the organization
+    // For now we're treating both 'admin' and 'adminx' as the same permission level
+    if (memberData.permission !== 'admin') {
       return res.status(403).json({ 
         success: false, 
         message: 'Admin privileges required for this action' 

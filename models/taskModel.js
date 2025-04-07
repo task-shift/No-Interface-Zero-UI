@@ -98,6 +98,84 @@ class TaskModel {
       return { success: false, error: error.message };
     }
   }
+
+  static async getTasksAssignedToUser(user_id, organization_id) {
+    try {
+      console.log(`Fetching tasks assigned to user_id: ${user_id} in organization: ${organization_id}`);
+      
+      // First, get all tasks for the organization
+      const { data: allOrgTasks, error: orgTasksError } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('organization_id', organization_id);
+        
+      if (orgTasksError) {
+        console.error('Error fetching organization tasks:', orgTasksError);
+        throw orgTasksError;
+      }
+      
+      console.log(`Total organization tasks: ${allOrgTasks?.length || 0}`);
+      
+      if (allOrgTasks && allOrgTasks.length > 0) {
+        // Log the first task's full structure for debugging
+        console.log('First task structure:', JSON.stringify(allOrgTasks[0], null, 2));
+        
+        // Log all tasks' assignees for debugging
+        console.log('All tasks assignees:');
+        allOrgTasks.forEach((task, i) => {
+          console.log(`Task ${i+1} (${task.title}) assignees:`, JSON.stringify(task.assignees, null, 2));
+        });
+      }
+      
+      // Filter tasks using JavaScript (most reliable method)
+      let userTasks = [];
+      if (allOrgTasks && allOrgTasks.length > 0) {
+        userTasks = allOrgTasks.filter(task => {
+          console.log(`Checking task "${task.title}" (${task.task_id}) for assignee with user_id ${user_id}`);
+          
+          // Skip tasks with no assignees
+          if (!task.assignees || !Array.isArray(task.assignees) || task.assignees.length === 0) {
+            console.log(`- Task has no assignees or invalid assignees format`);
+            return false;
+          }
+          
+          // Check each assignee
+          const isAssigned = task.assignees.some(assignee => {
+            if (typeof assignee === 'object' && assignee !== null) {
+              const match = assignee.user_id === user_id;
+              console.log(`- Checking assignee object:`, JSON.stringify(assignee), 
+                        `user_id match: ${match}`);
+              return match;
+            } else if (typeof assignee === 'string') {
+              const match = assignee === user_id;
+              console.log(`- Checking assignee string:`, assignee, 
+                        `direct match: ${match}`);
+              return match;
+            }
+            return false;
+          });
+          
+          console.log(`- Result: User ${isAssigned ? 'IS' : 'is NOT'} assigned to this task`);
+          return isAssigned;
+        });
+      }
+      
+      console.log(`Final result: ${userTasks.length} tasks assigned to user`);
+      
+      // Output task IDs and titles for matched tasks
+      if (userTasks.length > 0) {
+        console.log('Assigned tasks:');
+        userTasks.forEach((task, i) => {
+          console.log(`${i+1}. ${task.title} (${task.task_id})`);
+        });
+      }
+      
+      return { success: true, tasks: userTasks };
+    } catch (error) {
+      console.error('Error in getTasksAssignedToUser:', error);
+      return { success: false, error: error.message };
+    }
+  }
 }
 
 module.exports = TaskModel; 

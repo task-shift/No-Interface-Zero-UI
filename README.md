@@ -611,6 +611,225 @@ Authorization: Bearer jwt_token_here
 }
 ```
 
+### Invite Team Member
+
+Invites a new user to join the user's current active organization by email.
+
+```http
+POST /api/organizations/invite
+Content-Type: application/json
+Authorization: Bearer jwt_token_here
+
+{
+    "email": "newmember@example.com",
+    "fullname": "Jane Smith",
+    "role": "user",              // Optional - defaults to "user"
+    "permission": "standard"     // Optional - defaults to "standard"
+}
+```
+
+#### Response (Success)
+
+```json
+{
+    "success": true,
+    "message": "Invitation sent successfully",
+    "invitation": {
+        "id": 1,
+        "organization_id": "org_uuid_here",
+        "email": "newmember@example.com",
+        "fullname": "Jane Smith",
+        "role": "user",
+        "permission": "standard",
+        "status": "invited",
+        "date_created": "2023-08-15",
+        "time_created": "14:30:00"
+    }
+}
+```
+
+#### Response (Error - No Current Organization)
+
+```json
+{
+    "success": false,
+    "message": "No current organization set. Please set a current organization before inviting team members."
+}
+```
+
+#### Response (Error - Already Invited)
+
+```json
+{
+    "success": false,
+    "message": "This user has already been invited to the organization",
+    "error": "ALREADY_INVITED"
+}
+```
+
+#### Response (Error - Already a Member)
+
+```json
+{
+    "success": false,
+    "message": "This user is already a member of the organization",
+    "error": "ALREADY_MEMBER"
+}
+```
+
+### Activate Organization Invitation
+
+Activates a pending invitation for the authenticated user, changing their status from "invited" to "active" in the organization_members table, adds the organization to the user's organization list, and sets it as their current active organization.
+
+```http
+POST /api/organizations/activate-invitation
+Content-Type: application/json
+Authorization: Bearer jwt_token_here
+
+{
+    "email": "john.doe@example.com",
+    "organization_id": "org_uuid_here"
+}
+```
+
+#### Response (Success)
+
+```json
+{
+    "success": true,
+    "message": "Invitation activated successfully",
+    "activation": {
+        "id": 1,
+        "organization_id": "org_uuid_here",
+        "email": "john.doe@example.com",
+        "fullname": "John Doe",
+        "role": "user",
+        "permission": "standard",
+        "status": "active",
+        "user_id": "user_uuid_here",
+        "date_created": "2023-08-15",
+        "time_created": "14:30:00"
+    },
+    "organization": {
+        "organization_id": "org_uuid_here",
+        "organization_name": "Acme Corp",
+        "created_at": "2023-08-15T14:30:00Z"
+    },
+    "user": {
+        "id": 1,
+        "fullname": "John Doe",
+        "username": "johndoe",
+        "email": "john.doe@example.com",
+        "organization_id": ["org_uuid_here"],
+        "current_organization_id": "org_uuid_here",
+        "status": "verified"
+    }
+}
+```
+
+#### Response (Error - No Invitation Found)
+
+```json
+{
+    "success": false,
+    "message": "No pending invitation found for this email and organization"
+}
+```
+
+#### Response (Error - Email Mismatch)
+
+```json
+{
+    "success": false,
+    "message": "You can only activate invitations sent to your own email address"
+}
+```
+
+### Activate Organization Invitation with Registration
+
+Activates a pending invitation and simultaneously registers a new user account. This endpoint is designed for new users who have been invited to join an organization but don't have an account yet. The user will be automatically verified and added to the organization.
+
+```http
+POST /api/organizations/activate-invitation-with-registration
+Content-Type: application/json
+
+{
+    "email": "john.doe@example.com",
+    "organization_id": "org_uuid_here",
+    "username": "johndoe",
+    "fullname": "John Doe",
+    "password": "securepassword123"
+}
+```
+
+#### Response (Success)
+
+```json
+{
+    "success": true,
+    "message": "Registration successful and invitation activated",
+    "token": "jwt_token_here",
+    "user": {
+        "id": 1,
+        "fullname": "John Doe",
+        "username": "johndoe",
+        "email": "john.doe@example.com",
+        "avatar": null,
+        "user_id": "user_uuid_here",
+        "role": "user",
+        "organization_id": ["org_uuid_here"],
+        "current_organization_id": "org_uuid_here",
+        "status": "verified"
+    },
+    "organization": {
+        "organization_id": "org_uuid_here",
+        "organization_name": "Acme Corp",
+        "created_at": "2023-08-15T14:30:00Z"
+    },
+    "activation": {
+        "id": 1,
+        "organization_id": "org_uuid_here",
+        "email": "john.doe@example.com",
+        "fullname": "John Doe",
+        "role": "user",
+        "permission": "standard",
+        "status": "active",
+        "user_id": "user_uuid_here",
+        "date_created": "2023-08-15",
+        "time_created": "14:30:00"
+    }
+}
+```
+
+#### Response (Error - No Invitation Found)
+
+```json
+{
+    "success": false,
+    "message": "No pending invitation found for this email and organization"
+}
+```
+
+#### Response (Error - Username Already Exists)
+
+```json
+{
+    "success": false,
+    "message": "Username already exists",
+    "error": "USERNAME_EXISTS"
+}
+```
+
+#### Response (Error - Email Already Exists)
+
+```json
+{
+    "success": false,
+    "message": "Email already exists",
+    "error": "EMAIL_EXISTS"
+}
+```
+
 ### List All Organizations (Admin Only)
 
 Returns a list of all organizations (restricted to admin users).
@@ -645,6 +864,75 @@ Authorization: Bearer jwt_token_here
             "time_created": "10:15:00"
         }
     ]
+}
+```
+
+### Get Organization Members
+
+Retrieves all members of the user's current active organization.
+
+```http
+GET /api/organizations/members
+Content-Type: application/json
+Authorization: Bearer jwt_token_here
+```
+
+#### Response (Success)
+
+```json
+{
+    "success": true,
+    "members": [
+        {
+            "id": 1,
+            "organization_id": "org_uuid_here",
+            "email": "admin@example.com",
+            "fullname": "Admin User",
+            "username": "admin",
+            "user_id": "user_uuid_here",
+            "role": "admin",
+            "permission": "admin",
+            "status": "active",
+            "date_created": "2023-08-15",
+            "time_created": "14:30:00"
+        },
+        {
+            "id": 2,
+            "organization_id": "org_uuid_here",
+            "email": "user@example.com",
+            "fullname": "Regular User",
+            "username": "regularuser",
+            "user_id": "user_uuid_here",
+            "role": "user",
+            "permission": "standard",
+            "status": "active",
+            "date_created": "2023-08-16",
+            "time_created": "10:15:00"
+        }
+    ],
+    "organization": {
+        "organization_id": "org_uuid_here",
+        "organization_name": "Acme Corp",
+        "created_at": "2023-08-15T14:30:00Z"
+    }
+}
+```
+
+#### Response (Error - No Current Organization)
+
+```json
+{
+    "success": false,
+    "message": "No current organization set. Please set a current organization first."
+}
+```
+
+#### Response (Error - Not a Member)
+
+```json
+{
+    "success": false,
+    "message": "You are not a member of this organization"
 }
 ```
 
@@ -775,6 +1063,67 @@ Authorization: Bearer jwt_token_here
             "time_created": "09:15:00"
         }
     ]
+}
+```
+
+### Get Tasks Assigned to Current User
+
+Returns all tasks in the user's current organization to which they are assigned as an assignee.
+
+```http
+GET /api/tasks/assigned
+Authorization: Bearer jwt_token_here
+```
+
+#### Response (Success)
+
+```json
+{
+    "success": true,
+    "tasks": [
+        {
+            "id": 1,
+            "title": "Task 1",
+            "description": "Task 1 description",
+            "task_id": "task_uuid_1",
+            "user_id": "creator_user_id",
+            "organization_id": "org_uuid_here",
+            "assignees": [
+                {
+                    "user_id": "current_user_uuid_here",
+                    "username": "currentuser",
+                    "fullname": "Current User"
+                },
+                {
+                    "user_id": "user2_uuid_here",
+                    "username": "otheruser",
+                    "fullname": "Other User"
+                }
+            ],
+            "status": "pending",
+            "due_date": "2023-12-15",
+            "date_created": "2023-08-15",
+            "time_created": "14:30:00"
+        }
+    ]
+}
+```
+
+#### Response (Error - No Current Organization)
+
+```json
+{
+    "success": false,
+    "message": "No organization context found. Please set a current organization or join an organization."
+}
+```
+
+#### Response (Error - Not a Member)
+
+```json
+{
+    "success": false,
+    "message": "You are not a member of this organization"
 }
 ```
 

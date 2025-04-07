@@ -21,11 +21,43 @@ exports.createTask = async (req, res) => {
       });
     }
 
-    // Check if user has admin privileges
-    if (req.user.role !== 'admin' && req.user.role !== 'adminx') {
+    // Get organization ID from current_organization_id, with fallback to the first organization_id
+    let orgId = req.user.current_organization_id;
+    
+    // If current_organization_id is not set, fall back to the first one in the array
+    if (!orgId && req.user.organization_id && req.user.organization_id.length > 0) {
+      orgId = req.user.organization_id[0];
+      console.log(`No current_organization_id set, falling back to first organization: ${orgId}`);
+    }
+
+    // Clean up organization_id if it contains commas (legacy support)
+    if (typeof orgId === 'string' && orgId.includes(',')) {
+      orgId = orgId.split(',')[0];
+      console.log(`Found comma in organization_id, using first value: ${orgId}`);
+    }
+
+    // Check user's permission in the organization_members table
+    const { data: memberData, error: memberError } = await supabase
+      .from('organization_members')
+      .select('role, permission')
+      .eq('organization_id', orgId)
+      .eq('user_id', req.user.user_id)
+      .eq('status', 'active')
+      .single();
+
+    if (memberError) {
+      console.error('Error checking member permissions:', memberError);
       return res.status(403).json({
         success: false,
-        message: 'Admin privileges required to create and assign tasks'
+        message: 'You do not have permission to create tasks in this organization'
+      });
+    }
+
+    // Check if user has admin permission in this organization
+    if (!memberData || memberData.permission !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin permission required to create tasks in this organization'
       });
     }
 
@@ -55,23 +87,8 @@ exports.createTask = async (req, res) => {
       }
     }
 
-    // Get organization ID from current_organization_id, with fallback to the first organization_id
-    let orgId = req.user.current_organization_id;
-    
-    // If current_organization_id is not set, fall back to the first one in the array
-    if (!orgId && req.user.organization_id && req.user.organization_id.length > 0) {
-      orgId = req.user.organization_id[0];
-      console.log(`No current_organization_id set, falling back to first organization: ${orgId}`);
-    }
-
     // Log the organization_id for debugging
     console.log(`Using organization_id: ${orgId} (type: ${typeof orgId})`);
-
-    // Clean up organization_id if it contains commas (legacy support)
-    if (typeof orgId === 'string' && orgId.includes(',')) {
-      orgId = orgId.split(',')[0];
-      console.log(`Found comma in organization_id, using first value: ${orgId}`);
-    }
 
     // Create task with authenticated user's ID and organization
     const { success, task, error } = await TaskModel.createTask({
@@ -130,6 +147,23 @@ exports.getOrganizationTasks = async (req, res) => {
       });
     }
 
+    // Check user's membership in the organization
+    const { data: memberData, error: memberError } = await supabase
+      .from('organization_members')
+      .select('role, permission')
+      .eq('organization_id', orgId)
+      .eq('user_id', req.user.user_id)
+      .eq('status', 'active')
+      .single();
+
+    if (memberError || !memberData) {
+      console.error('Error checking member status:', memberError || 'Not a member');
+      return res.status(403).json({
+        success: false,
+        message: 'You are not a member of this organization'
+      });
+    }
+
     console.log(`Fetching tasks for organization: ${orgId}`);
 
     const { success, tasks, error } = await TaskModel.getTasksByOrganization(orgId);
@@ -185,15 +219,29 @@ exports.getTaskById = async (req, res) => {
       taskOrgId = taskOrgId.split(',')[0];
     }
     
-    // For admin users, allow access to any task
-    const isAdmin = req.user.role === 'admin' || req.user.role === 'adminx';
-    
     // Check if task belongs to user's current organization
-    if (!isAdmin && taskOrgId !== userOrgId) {
+    if (taskOrgId !== userOrgId) {
       console.log(`Access denied: Task org (${taskOrgId}) doesn't match user's current org (${userOrgId})`);
       return res.status(403).json({
         success: false,
         message: 'Not authorized to access this task'
+      });
+    }
+
+    // Check user's membership in the organization
+    const { data: memberData, error: memberError } = await supabase
+      .from('organization_members')
+      .select('role, permission')
+      .eq('organization_id', taskOrgId)
+      .eq('user_id', req.user.user_id)
+      .eq('status', 'active')
+      .single();
+
+    if (memberError || !memberData) {
+      console.error('Error checking member status:', memberError || 'Not a member');
+      return res.status(403).json({
+        success: false,
+        message: 'You are not a member of the organization this task belongs to'
       });
     }
 
@@ -246,11 +294,8 @@ exports.updateTask = async (req, res) => {
       taskOrgId = taskOrgId.split(',')[0];
     }
     
-    // For admin users, allow updating any task
-    const isAdmin = req.user.role === 'admin' || req.user.role === 'adminx';
-    
     // Check if task belongs to user's current organization
-    if (!isAdmin && taskOrgId !== userOrgId) {
+    if (taskOrgId !== userOrgId) {
       console.log(`Update denied: Task org (${taskOrgId}) doesn't match user's current org (${userOrgId})`);
       return res.status(403).json({
         success: false,
@@ -258,11 +303,28 @@ exports.updateTask = async (req, res) => {
       });
     }
     
-    // Check if user has admin privileges for the organization
-    if (req.user.role !== 'admin' && req.user.role !== 'adminx') {
+    // Check user's permission in the organization_members table
+    const { data: memberData, error: memberError } = await supabase
+      .from('organization_members')
+      .select('role, permission')
+      .eq('organization_id', taskOrgId)
+      .eq('user_id', req.user.user_id)
+      .eq('status', 'active')
+      .single();
+
+    if (memberError) {
+      console.error('Error checking member permissions:', memberError);
       return res.status(403).json({
         success: false,
-        message: 'Admin privileges required to update tasks'
+        message: 'You do not have permission to update tasks in this organization'
+      });
+    }
+
+    // Check if user has admin permission in this organization
+    if (!memberData || memberData.permission !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin permission required to update tasks in this organization'
       });
     }
     
@@ -322,6 +384,100 @@ exports.updateTask = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error updating task',
+      detailedError: error.message
+    });
+  }
+};
+
+// Get tasks assigned to the current user
+exports.getUserAssignedTasks = async (req, res) => {
+  try {
+    console.log('=== Get Assigned Tasks Request ===');
+    console.log('User:', req.user.user_id, req.user.username || 'Unknown username');
+    console.log('Looking for tasks where this user is in the assignees array');
+    
+    // Get organization ID from current_organization_id, with fallback to the first organization_id
+    let orgId = req.user.current_organization_id;
+    
+    // If current_organization_id is not set, fall back to the first one in the array
+    if (!orgId && req.user.organization_id && req.user.organization_id.length > 0) {
+      orgId = req.user.organization_id[0];
+      console.log(`No current_organization_id set for assigned tasks, falling back to first organization: ${orgId}`);
+    }
+
+    // Clean up organization_id if it contains commas (legacy support)
+    if (typeof orgId === 'string' && orgId.includes(',')) {
+      orgId = orgId.split(',')[0];
+      console.log(`Found comma in organization_id, using first value: ${orgId}`);
+    }
+
+    // Return error if no organization is available
+    if (!orgId) {
+      console.log('No organization context found for user');
+      return res.status(400).json({
+        success: false,
+        message: 'No organization context found. Please set a current organization or join an organization.'
+      });
+    }
+
+    // Check user's membership in the organization
+    const { data: memberData, error: memberError } = await supabase
+      .from('organization_members')
+      .select('role, permission, status')
+      .eq('organization_id', orgId)
+      .eq('user_id', req.user.user_id)
+      .single();
+
+    if (memberError) {
+      console.error('Error checking member status:', memberError);
+      return res.status(403).json({
+        success: false,
+        message: 'Error verifying organization membership'
+      });
+    }
+    
+    if (!memberData) {
+      console.log('User is not a member of the organization');
+      return res.status(403).json({
+        success: false,
+        message: 'You are not a member of this organization'
+      });
+    }
+    
+    if (memberData.status !== 'active') {
+      console.log(`User's membership status is ${memberData.status}, not active`);
+      return res.status(403).json({
+        success: false,
+        message: `Your membership status (${memberData.status}) does not allow access to tasks`
+      });
+    }
+
+    console.log(`Fetching tasks assigned to user: ${req.user.user_id} in organization: ${orgId}`);
+    console.log(`User role: ${memberData.role}, permission: ${memberData.permission}`);
+
+    // Get tasks assigned to the current user
+    const { success, tasks, error } = await TaskModel.getTasksAssignedToUser(req.user.user_id, orgId);
+
+    if (!success) {
+      console.error('Model returned error:', error);
+      return res.status(400).json({
+        success: false,
+        message: error
+      });
+    }
+
+    console.log(`Returning ${tasks.length} assigned tasks to user`);
+    
+    // If no tasks are found, still return success but with empty array
+    res.json({
+      success: true,
+      tasks: tasks || []
+    });
+  } catch (error) {
+    console.error('Get assigned tasks error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error fetching assigned tasks',
       detailedError: error.message
     });
   }

@@ -13,6 +13,9 @@ router.post('/', requireAdminOrAdminX, taskController.createTask);
 // Get all tasks for user's organization
 router.get('/', taskController.getOrganizationTasks);
 
+// Get tasks assigned to the current user
+router.get('/assigned', taskController.getUserAssignedTasks);
+
 // Get specific task by ID
 router.get('/:task_id', taskController.getTaskById);
 

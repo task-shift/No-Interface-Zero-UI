@@ -1066,6 +1066,67 @@ Authorization: Bearer jwt_token_here
 }
 ```
 
+### Get Tasks Assigned to Current User
+
+Returns all tasks in the user's current organization to which they are assigned as an assignee.
+
+```http
+GET /api/tasks/assigned
+Authorization: Bearer jwt_token_here
+```
+
+#### Response (Success)
+
+```json
+{
+    "success": true,
+    "tasks": [
+        {
+            "id": 1,
+            "title": "Task 1",
+            "description": "Task 1 description",
+            "task_id": "task_uuid_1",
+            "user_id": "creator_user_id",
+            "organization_id": "org_uuid_here",
+            "assignees": [
+                {
+                    "user_id": "current_user_uuid_here",
+                    "username": "currentuser",
+                    "fullname": "Current User"
+                },
+                {
+                    "user_id": "user2_uuid_here",
+                    "username": "otheruser",
+                    "fullname": "Other User"
+                }
+            ],
+            "status": "pending",
+            "due_date": "2023-12-15",
+            "date_created": "2023-08-15",
+            "time_created": "14:30:00"
+        }
+    ]
+}
+```
+
+#### Response (Error - No Current Organization)
+
+```json
+{
+    "success": false,
+    "message": "No organization context found. Please set a current organization or join an organization."
+}
+```
+
+#### Response (Error - Not a Member)
+
+```json
+{
+    "success": false,
+    "message": "You are not a member of this organization"
+}
+```
+
 ### Get Task by ID
 
 Returns a specific task by ID.

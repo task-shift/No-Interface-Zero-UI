@@ -98,6 +98,33 @@ class TaskModel {
       return { success: false, error: error.message };
     }
   }
+
+  static async getTasksAssignedToUser(user_id, organization_id) {
+    try {
+      console.log(`Fetching tasks assigned to user_id: ${user_id} in organization: ${organization_id}`);
+      
+      // Query for tasks where the user is in the assignees array
+      // This uses PostgreSQL JSONB containment operator @> to check if the assignees array
+      // contains an object with the matching user_id
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('organization_id', organization_id)
+        .filter('assignees', 'cs', `{"user_id":"${user_id}"}`)
+        .order('date_created', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching assigned tasks:', error);
+        throw error;
+      }
+      
+      console.log(`Found ${data?.length || 0} tasks assigned to user`);
+      return { success: true, tasks: data };
+    } catch (error) {
+      console.error('Error in getTasksAssignedToUser:', error);
+      return { success: false, error: error.message };
+    }
+  }
 }
 
 module.exports = TaskModel; 

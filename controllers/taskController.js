@@ -387,4 +387,72 @@ exports.updateTask = async (req, res) => {
       detailedError: error.message
     });
   }
+};
+
+// Get tasks assigned to the current user
+exports.getUserAssignedTasks = async (req, res) => {
+  try {
+    // Get organization ID from current_organization_id, with fallback to the first organization_id
+    let orgId = req.user.current_organization_id;
+    
+    // If current_organization_id is not set, fall back to the first one in the array
+    if (!orgId && req.user.organization_id && req.user.organization_id.length > 0) {
+      orgId = req.user.organization_id[0];
+      console.log(`No current_organization_id set for assigned tasks, falling back to first organization: ${orgId}`);
+    }
+
+    // Clean up organization_id if it contains commas (legacy support)
+    if (typeof orgId === 'string' && orgId.includes(',')) {
+      orgId = orgId.split(',')[0];
+    }
+
+    // Return error if no organization is available
+    if (!orgId) {
+      return res.status(400).json({
+        success: false,
+        message: 'No organization context found. Please set a current organization or join an organization.'
+      });
+    }
+
+    // Check user's membership in the organization
+    const { data: memberData, error: memberError } = await supabase
+      .from('organization_members')
+      .select('role, permission')
+      .eq('organization_id', orgId)
+      .eq('user_id', req.user.user_id)
+      .eq('status', 'active')
+      .single();
+
+    if (memberError || !memberData) {
+      console.error('Error checking member status:', memberError || 'Not a member');
+      return res.status(403).json({
+        success: false,
+        message: 'You are not a member of this organization'
+      });
+    }
+
+    console.log(`Fetching tasks assigned to user: ${req.user.user_id} in organization: ${orgId}`);
+
+    // Get tasks assigned to the current user
+    const { success, tasks, error } = await TaskModel.getTasksAssignedToUser(req.user.user_id, orgId);
+
+    if (!success) {
+      return res.status(400).json({
+        success: false,
+        message: error
+      });
+    }
+
+    res.json({
+      success: true,
+      tasks
+    });
+  } catch (error) {
+    console.error('Get assigned tasks error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error fetching assigned tasks',
+      detailedError: error.message
+    });
+  }
 }; 

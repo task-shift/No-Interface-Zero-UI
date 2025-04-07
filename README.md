@@ -940,9 +940,9 @@ Authorization: Bearer jwt_token_here
 
 All task endpoints require a verified user (email verified).
 
-### Create Task (Admin/AdminX Only)
+### Create Task (Organization Admins Only)
 
-Creates a new task in the user's current organization.
+Creates a new task in the user's current organization. Only users with 'admin' permission in the organization can create tasks.
 
 ```http
 POST /api/tasks
@@ -973,7 +973,7 @@ Authorization: Bearer jwt_token_here
 }
 ```
 
-#### Response
+#### Response (Success)
 
 ```json
 {
@@ -1006,6 +1006,15 @@ Authorization: Bearer jwt_token_here
         "date_created": "2023-08-15",
         "time_created": "14:30:00"
     }
+}
+```
+
+#### Response (Error - Insufficient Permissions)
+
+```json
+{
+    "success": false,
+    "message": "Admin permission required to create tasks in this organization"
 }
 ```
 
@@ -1251,6 +1260,53 @@ When an assignee updates a task, they can only update the status and append note
 ```
 
 Note: If an assignee attempts to update restricted fields (title, assignees, due_date), these fields will be ignored.
+
+### Delete Task (Admins and Assignees)
+
+Deletes an existing task from the user's current organization. Only admin users and users assigned to the task can delete it.
+
+```http
+DELETE /api/tasks/:task_id
+Authorization: Bearer jwt_token_here
+```
+
+#### Response (Admin Delete)
+
+```json
+{
+    "success": true,
+    "message": "Task deleted successfully",
+    "deleted_as": "admin"
+}
+```
+
+#### Response (Assignee Delete)
+
+```json
+{
+    "success": true,
+    "message": "Task deleted successfully",
+    "deleted_as": "assignee"
+}
+```
+
+#### Response (Error - Unauthorized)
+
+```json
+{
+    "success": false,
+    "message": "You must be an admin or assigned to this task to delete it"
+}
+```
+
+#### Response (Error - Task Not Found)
+
+```json
+{
+    "success": false,
+    "message": "Task not found"
+}
+```
 
 ## Test Endpoints
 

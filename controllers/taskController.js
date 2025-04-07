@@ -519,4 +519,108 @@ exports.getUserAssignedTasks = async (req, res) => {
       detailedError: error.message
     });
   }
+};
+
+// Delete a task
+exports.deleteTask = async (req, res) => {
+  try {
+    const { task_id } = req.params;
+    console.log(`Delete task request for task ID: ${task_id}`);
+    
+    // First get the task to check permissions
+    const { success: getSuccess, task: existingTask, error: getError } = 
+      await TaskModel.getTaskById(task_id);
+    
+    if (!getSuccess) {
+      return res.status(404).json({
+        success: false,
+        message: 'Task not found'
+      });
+    }
+    
+    // Get organization ID from current_organization_id, with fallback to the first organization_id
+    let userOrgId = req.user.current_organization_id;
+    
+    // If current_organization_id is not set, fall back to the first one in the array
+    if (!userOrgId && req.user.organization_id && req.user.organization_id.length > 0) {
+      userOrgId = req.user.organization_id[0];
+    }
+
+    // Clean up organization_id if it contains commas (legacy support)
+    if (typeof userOrgId === 'string' && userOrgId.includes(',')) {
+      userOrgId = userOrgId.split(',')[0];
+    }
+    
+    // Get the task's organization_id and clean it if needed
+    let taskOrgId = existingTask.organization_id;
+    if (typeof taskOrgId === 'string' && taskOrgId.includes(',')) {
+      taskOrgId = taskOrgId.split(',')[0];
+    }
+    
+    // Check if task belongs to user's current organization
+    if (taskOrgId !== userOrgId) {
+      console.log(`Delete denied: Task org (${taskOrgId}) doesn't match user's current org (${userOrgId})`);
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to delete this task'
+      });
+    }
+    
+    // Check user's permission in the organization_members table
+    const { data: memberData, error: memberError } = await supabase
+      .from('organization_members')
+      .select('role, permission')
+      .eq('organization_id', taskOrgId)
+      .eq('user_id', req.user.user_id)
+      .eq('status', 'active')
+      .single();
+
+    if (memberError) {
+      console.error('Error checking member permissions:', memberError);
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to delete tasks in this organization'
+      });
+    }
+
+    // Check if user has admin permission or is an assignee of this task
+    const isAdmin = memberData && memberData.permission === 'admin';
+    const isAssignee = existingTask.assignees && 
+                       Array.isArray(existingTask.assignees) &&
+                       existingTask.assignees.some(assignee => 
+                         assignee.user_id === req.user.user_id);
+    
+    console.log(`User delete permissions - isAdmin: ${isAdmin}, isAssignee: ${isAssignee}`);
+    
+    if (!isAdmin && !isAssignee) {
+      return res.status(403).json({
+        success: false,
+        message: 'You must be an admin or assigned to this task to delete it'
+      });
+    }
+    
+    // Delete the task
+    const { success, error, message } = await TaskModel.deleteTask(task_id);
+    
+    if (!success) {
+      console.error('Error deleting task:', error);
+      return res.status(400).json({
+        success: false,
+        message: error
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: 'Task deleted successfully',
+      deleted_as: isAdmin ? 'admin' : 'assignee'
+    });
+  } catch (error) {
+    console.error('Delete task error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error deleting task',
+      detailedError: error.message
+    });
+  }
 }; 

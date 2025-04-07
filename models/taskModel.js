@@ -176,6 +176,35 @@ class TaskModel {
       return { success: false, error: error.message };
     }
   }
+
+  static async deleteTask(task_id) {
+    try {
+      console.log(`Deleting task with ID: ${task_id}`);
+      
+      // First check if the task exists
+      const checkResult = await this.getTaskById(task_id);
+      if (!checkResult.success) {
+        return { success: false, error: 'Task not found' };
+      }
+      
+      // Delete the task
+      const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('task_id', task_id);
+
+      if (error) {
+        console.error('Error deleting task:', error);
+        throw error;
+      }
+      
+      console.log(`Task ${task_id} deleted successfully`);
+      return { success: true, message: 'Task deleted successfully' };
+    } catch (error) {
+      console.error('Error in deleteTask:', error);
+      return { success: false, error: error.message };
+    }
+  }
 }
 
 module.exports = TaskModel; 
